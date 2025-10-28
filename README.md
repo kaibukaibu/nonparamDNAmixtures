@@ -9,7 +9,7 @@ Code for non-parametric simulation/replication of DNA mixtures from one-person t
 
 # Explanation of files
 The code consists of three R files:
-- **01_replicate_mixtures.R**: code for replicating PROVEDIt mixtures. Outputs raw mixture profiles without stutter filter and analytical thresholds.
+- **01_replicate_mixtures.R**: code for replicating PROVEDIt mixtures. Outputs raw mixture profiles without applying stutter filter and analytical thresholds.
 - **02_apply_stutterfilter.R**: code for applying analytical thresholds from Riman et al. (2021) and a stutter filter. Also generates collections of trace-POI combinations to go through in LR calculations (by whatever software).
 - **helping_functions.R**: collection of functions for transforming profile data from wide to long format and vice versa.
 
