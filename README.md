@@ -15,4 +15,4 @@ The code consists of three .R files:
 
 In addition, there are two folders for data:
 - data_provedit -- mixture profiles, 1-person profiles and genotype profiles from PROVEDIt.
-- data_simulated -- replicate mixture profiles that the code generates and that are further examined in the paper.
+- data_simulated -- replicate mixture profiles that the code generates and that are further examined in the paper. "real" represents PROVEDIt data, "nomod" represents replicate mixtures pasted from unmodified 1-person profiles (set 1 in paper) and "mod" represents mixtures pasted from modified 1-person profiles (set 2 in paper).
