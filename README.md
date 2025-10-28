@@ -1,8 +1,8 @@
 # repDNAmixtures
-Code for non-parametric simulation/replication of DNA mixtures from one-person trace profiles. The code is part of the paper "Non-Parametric Simulation of DNA Mixture Profiles from One-Person Trace Profiles" (2026). In this code we replicate 2-4-person DNA mixtures from PROVEDIt by pasting together several 1-person DNA profiles.
+Code for non-parametric simulation/replication of DNA mixtures from one-person trace profiles by Kai Budrikas (kaib@itu.dk). This code is part of paper "Non-Parametric Simulation of DNA Mixture Profiles from One-Person Trace Profiles" (2026) by Kai Budrikas and Klaas Slooten. In this code we replicate 2-4-person DNA mixtures from PROVEDIt by pasting together several 1-person DNA profiles. 
 
 # Necessary software and packages:
-- **R** (written in version 4.4.1)
+- **R** (tested in version 4.4.1)
 - **tidyverse**
 - **doParallel**
 - **openxlsx**
