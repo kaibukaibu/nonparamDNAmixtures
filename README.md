@@ -1,6 +1,14 @@
 # genDNAmixtures
-Code for non-parametric simulation of DNA mixtures from one-person trace profiles. The code is part of the paper "Non-Parametric Simulation of DNA Mixture Profiles from One-Person Trace Profiles" by ... (2026).
+Code for non-parametric simulation of DNA mixtures from one-person trace profiles. The code is part of the paper "Non-Parametric Simulation of DNA Mixture Profiles from One-Person Trace Profiles" by ... (2026). In this code we replicate 2-4-person DNA mixtures from PROVEDIt by pasting together several 1-person DNA profiles.
 
-In this code we replicate 2-4-person DNA mixtures from PROVEDIt by pasting together several 1-person DNA profiles. The code consists of two files -- one for creating the mixtures and one for applying a stutter filter and analytical thresholds on it.
+# Necessary software and packages:
+- R (written in version 4.4.1)
+- tidyverse
+- doParallel
+- openxlsx
 
-Dependencies:
+# Explanation of files
+The code consists of three .R files:
+- 01_replicate_mixtures.R -- code for replicating PROVEDIt mixtures. Outputs raw mixture profiles without stutter filter and analytical thresholds.
+- 02_apply_stutterfilter.R -- code for applying analytical thresholds from Riman et al. (2021) and a stutter filter.
+- helping_functions.R -- collection of functions for transforming profile data from wide to long format and vice versa.
