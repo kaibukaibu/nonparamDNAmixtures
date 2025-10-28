@@ -9,10 +9,10 @@ Code for non-parametric simulation/replication of DNA mixtures from one-person t
 
 # Explanation of files
 The code consists of three R files:
-- **01_replicate_mixtures.R** -- code for replicating PROVEDIt mixtures. Outputs raw mixture profiles without stutter filter and analytical thresholds.
-- **02_apply_stutterfilter.R** -- code for applying analytical thresholds from Riman et al. (2021) and a stutter filter. Also generates collections of trace-POI combinations to go through in LR calculations (by whatever software).
-- **helping_functions.R** -- collection of functions for transforming profile data from wide to long format and vice versa.
+- **01_replicate_mixtures.R**: code for replicating PROVEDIt mixtures. Outputs raw mixture profiles without stutter filter and analytical thresholds.
+- **02_apply_stutterfilter.R**: code for applying analytical thresholds from Riman et al. (2021) and a stutter filter. Also generates collections of trace-POI combinations to go through in LR calculations (by whatever software).
+- **helping_functions.R**: collection of functions for transforming profile data from wide to long format and vice versa.
 
 In addition, there are two folders for data:
-- **data_provedit** -- mixture profiles, 1-person profiles and genotype profiles from PROVEDIt.
-- **data_simulated** -- replicate mixture profiles that the code generates and that are further examined in the paper. "real" represents PROVEDIt data, "nomod" represents replicate mixtures pasted from unmodified 1-person profiles (set 1 in paper) and "mod" represents mixtures pasted from modified 1-person profiles (set 2 in paper).
+- **data_provedit**: mixture profiles, 1-person profiles and genotype profiles from PROVEDIt.
+- **data_simulated**: replicate mixture profiles that the code generates and that are further examined in the paper. "real" represents PROVEDIt data, "nomod" represents replicate mixtures pasted from unmodified 1-person profiles (set 1 in paper) and "mod" represents mixtures pasted from modified 1-person profiles (set 2 in paper).
