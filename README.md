@@ -18,3 +18,4 @@ In addition, there are three folders for data:
 - **data_simulated**: replicate mixture profiles that the code generates and that are further examined in the paper. "real" represents PROVEDIt data, "nomod" represents replicate mixtures pasted from unmodified 1-person profiles (set 1 in paper) and "mod" represents mixtures pasted from modified 1-person profiles (set 2 in paper).
 - **LR_results**: collection of LR results obtained in DNAStatistX for the replicated mixtures.
 
+
