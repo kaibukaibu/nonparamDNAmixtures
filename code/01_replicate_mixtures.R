@@ -12,12 +12,12 @@ library(tidyverse)
 library(doParallel)
 
 
-setwd("...") #Project location
-input_proveditmixes <- "data_provedit/234p_unfiltered/" # Provedit mixtures folder
-input_proved1p <- "data_provedit/1p_unfiltered/"  # 1p traces folder, must end with "/"
-output_folder <- "data_simulated/" # Folder for saving the results, must end with "/"
-GTs_provedit <- "data_provedit/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
-source("helping_functions.R") # Some functions for transforming the profile data from long to wide format and vice versa
+setwd("..") #Project location
+input_proveditmixes <- "data/data_provedit/234p_unfiltered/" # Provedit mixtures folder
+input_proved1p <- "data/data_provedit/1p_unfiltered/"  # 1p traces folder, must end with "/"
+output_folder <- "data/data_replicated/" # Folder for saving the results, must end with "/"
+GTs_provedit <- "data/data_provedit/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
+source("code/helping_functions.R") # Some functions for transforming the profile data from long to wide format and vice versa
 
 
 

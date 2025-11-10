@@ -9,10 +9,10 @@
 library(tidyverse)
 library(openxlsx)
 
-setwd("...")
-source("helping_functions.R") # Some functions to help
-genotypes_folder <- "data_provedit/genotypes/" #Folder for genotypes, must have "/" at the end. Only used for making sure which markers to look at.
-results_folder <- "data_simulated/" #Where to save the results, must have "/" at the end
+setwd("..")
+source("code/helping_functions.R") # Some functions to help
+genotypes_folder <- "data/data_provedit/genotypes/" #Folder for genotypes, must have "/" at the end. Only used for making sure which markers to look at.
+results_folder <- "data/data_replicated/" #Where to save the results, must have "/" at the end
 
 
 

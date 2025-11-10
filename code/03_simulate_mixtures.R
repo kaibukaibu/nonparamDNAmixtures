@@ -1,0 +1,857 @@
+# Code for simulating mixtures in paper "Non-parametric simulation of DNA mixture profiles from one-person trace profiles"
+# Author: Kai Budrikas (kaib@itu.dk)
+
+# The code consists of 3 parts:
+# 1. First we manipulate 1p traces we wish to sample from
+# 2. Then we create a dataset that specifies all combinations of 1p traces + contributors we wish to create mixtures of
+# 3. Then we update the peaks and paste 1p traces together (SF+AT can be applied later if you wish by adjusting the 02 code)
+
+# In this code we shall generate 10 2-person mixtures for each combination of contributors in the "GTs_target" folder.
+# Let us assume we are only interested in untreated samples with 1p profile rfus being between 10000 and 10000.
+# Code is easily adjustable to also condition on target mixture proportions
+# One could also adjust other parameters, fx if you want 1000 mixtures of the same set of contributors
+
+
+
+# -----------------------------------------------------------------------------------------------
+
+# Load packages and set data locations
+
+library(tidyverse)
+library(doParallel)
+
+
+setwd("..") #Project location
+input_proved1p <- "data/data_provedit/1p_unfiltered/"  # 1p traces folder, must end with "/"
+output_folder <- "data/data_simulated/" # Folder for saving the results, must end with "/"
+GTs_provedit <- "data/data_provedit/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
+GTs_target <- "data/target_genotypes/" # Folder for the genotypes of contributors for whom we wish to create mixtures, must end with "/"
+source("code/helping_functions.R") # Some functions for transforming the profile data from long to wide format and vice versa
+set.seed(66)
+
+
+# Set parameters
+NOC <- 2
+n_contrs <- length(list.files(GTs_target))
+n_mixturereps <- 10 # specifying how many mixtures of the same contributor combination we want
+rfu_min <- 10000
+rfu_max <- 100000
+treatment_type <- "Untreated" # takes values "DNase", "Humic acid", "Sonication", "Untreated", "UV"
+
+
+
+# -----------------------------------------------------------------------------------------------
+
+
+
+
+# expected stutter
+stutter_string <- "CSF1PO 8.77
+D10S1248 11.46
+D12S391 13.66
+D13S317 9.19
+D16S539 9.48
+D18S51 12.42
+D19S433 9.97
+D1S1656 12.21
+D21S11 10.45
+D22S1045 16.26
+D2S1338 11.73
+D2S441 8.10
+D3S1358 10.98
+D5S818 9.16
+D7S820 8.32
+D8S1179 9.60
+FGA 11.55
+SE33 14.49
+TH01 4.45
+TPOX 5.55
+vWA 10.73"
+
+stutter_percentages <- str_split(stutter_string, "\n") %>% 
+  as.data.frame() %>% 
+  dplyr::rename(thing = 1) %>% 
+  group_by(thing) %>% 
+  mutate(Marker = str_split(thing, " ")[[1]][1],
+         p = as.numeric(str_split(thing, " ")[[1]][2]),
+         p23 = p*(2/3) / 100) %>% 
+  ungroup() %>% 
+  select(!thing)
+
+
+
+
+
+
+#################### PART 1 -- selecting a subset of 1p traces ###########################################
+
+# Read and transform each file, then bind rows
+GTs00 <- do.call(rbind, lapply(list.files(GTs_provedit, full.names = T), function(file) {
+  read.csv(file) %>%
+    filter(!(Marker %in% c("AMEL", "Yindel", "DYS391")))
+}))
+
+
+# Creating indicators for which peaks in the profile are allelic and which are -1 stutter
+GTs01 <- rbind(
+  # Allelic peaks
+  GTs00 %>% 
+    select(Sample.Name, Marker, Allele.1) %>% 
+    rename(Allele=Allele.1),
+  GTs00 %>% 
+    select(Sample.Name, Marker, Allele.2) %>% 
+    rename(Allele=Allele.2),
+  
+  # -1 stutters
+  GTs00 %>% 
+    select(Sample.Name, Marker, Allele.1) %>% 
+    rename(Allele=Allele.1) %>% 
+    mutate(Allele = as.character(as.numeric(Allele)-1)),
+  GTs00 %>% 
+    select(Sample.Name, Marker, Allele.2) %>% 
+    rename(Allele=Allele.2) %>% 
+    mutate(Allele = as.character(as.numeric(Allele)-1))
+) %>% 
+  mutate(Allele = as.character(as.numeric(Allele)),
+         Sample.Name = gsub("c", "", Sample.Name)) %>% 
+  rename(cont = Sample.Name) %>% 
+  unique()
+
+
+
+
+
+
+
+
+
+# 1p traces
+provedit1p00 <- list.files(input_proved1p) %>% 
+  as.data.frame() %>% 
+  rename("trace" = ".") %>% 
+  group_by(trace) %>% 
+  mutate(contr = as.character(as.numeric(substr(str_split(trace, "-")[[1]][3],1,2))),
+         DNA = as.numeric(gsub("G", "", gsub("F", "", rev(str_split(trace, "-")[[1]])[2]))),
+         diltreat = str_split(trace, "-")[[1]][3],
+         contdil = substr(diltreat, 1, 4),
+         treat = gsub(contdil, "", diltreat),
+         treattype = substr(treat, 1,1),
+         treattype2 = case_when(
+           treattype=="a" ~ "Untreated",
+           treattype %in% c("b", "c", "d", "e") ~ "DNase",
+           treattype=="U" ~ "UV",
+           treattype=="S" ~ "Sonication",
+           treattype=="I" ~ "Humic acid"
+         )) %>% 
+  filter(treat!="") %>% 
+  ungroup() %>% 
+  mutate(rfu = NA) %>% 
+  
+  ungroup()
+
+
+# add total rfu
+for(i in 1:nrow(provedit1p00)){
+  trace_i <- read.csv(paste0(input_proved1p, provedit1p00$trace[i])) %>% 
+    filter(!Marker %in% c("AMEL", "Yindel", "DYS391")) %>% 
+    wide_to_long2() %>% 
+    
+    #Fix duplicates -- some alleles have two height values, we take only the highest peak
+    group_by(SampleName, Allele, Marker) %>% 
+    summarise(Height = max(Height)) %>% 
+    ungroup() %>% 
+    
+    mutate(contr = as.character(as.numeric(substr(str_split(SampleName, "-")[[1]][3],1,2)))) %>% 
+    
+    # Filter out everything but allelic and -1 stutter peaks after adding that info
+    left_join(
+      GTs01 %>% 
+        mutate(contr1_allele = 1),
+      by = join_by("contr"=="cont", "Marker"=="Marker", "Allele"=="Allele")
+    ) %>% 
+    
+    mutate(
+      sumsum = ifelse(is.na(contr1_allele), 0, contr1_allele)
+    ) %>% 
+    
+    mutate(sum_perrow = sum(as.numeric(Height) * sumsum))
+  
+  provedit1p00[i, "rfu"] <- unique(trace_i$sum_perrow)
+}
+
+
+# Filter here
+provedit1p_subset <- provedit1p00 %>% 
+  filter(treattype2 == treatment_type &
+         rfu_min <= rfu &
+         rfu_max >= rfu)
+  
+
+
+
+
+
+
+
+
+
+
+
+######### PART 2 -- make dataset that specifies all combinations of mixtures we wish to make #################
+
+combs <- gtools::combinations(n = n_contrs,
+                              r = NOC)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+cl <- makeCluster(5)
+registerDoParallel(cl)
+
+# Pasting the mixtures together and saving
+log_file <- foreach(row = 1:nrow(mixtures01),
+                    .combine=rbind,
+                    .packages = c("tidyverse")) %dopar% {
+                      rowdata <- mixtures01[row,]
+                      
+                      NOC_mix <- rowdata$NOC
+                      
+                      contributors <- rowdata[, c("contr1", "contr2", "contr3", "contr4")] %>% as.matrix() %>% c()
+                      contributors <- contributors[!is.na(contributors)]
+                      
+                      
+                      
+                      # Save real data as single files
+                      real_subset <- mixtures00 %>% 
+                        filter(SampleName == rowdata$SampleName) %>% 
+                        select(SampleName, Marker, Allele, Height) %>% 
+                        mutate(Allele = as.character(as.numeric(Allele)))
+                      
+                      missing_markers <- setdiff(unique(real_subset$Marker),
+                                                 unique(mixtures00$Marker))
+                      
+                      if(length(missing_markers)!=0){
+                        real_subset2 <- real_subset %>%
+                          rbind(data.frame(
+                            Marker = missing_markers,
+                            Allele = "",
+                            Height = ""
+                          )) %>% 
+                          long_to_wide(samplelabel = rowdata$SampleName) %>% 
+                          arrange(Marker)
+                      } else{
+                        real_subset2 <- real_subset %>%
+                          long_to_wide(samplelabel = rowdata$SampleName) %>% 
+                          arrange(Marker)
+                      }
+                      
+                      # Save results
+                      write.csv(real_subset2,
+                                paste0(output_folder, NOC_mix, "p_real/", unique(real_subset2$SampleName), ".csv"), row.names=F, quote = F)
+                      
+                      
+                      
+                      
+                      
+                      #No modifications first ------------------------------------------------------------
+                      traces_1p <- rowdata[, c("contr1_nomod", "contr2_nomod", "contr3_nomod", "contr4_nomod")] %>% as.matrix() %>% c()
+                      traces_1p <- traces_1p[!is.na(traces_1p)]
+                      
+                      target_contrs00 <- do.call(rbind, lapply(contributors,
+                                                               function(contr){
+                                                                 read.csv(paste0(GTs_provedit, "c", contr, ".csv"))
+                                                               }))
+                      
+                      # Paste GTs together
+                      target_contr_GTs01 <- target_contrs00 %>% 
+                        select(Sample.Name, Marker, Allele.1) %>% 
+                        rename(SampleName = Sample.Name,
+                               Allele = Allele.1) %>% 
+                        rbind(
+                          target_contrs00 %>% 
+                            select(Sample.Name, Marker, Allele.2) %>% 
+                            rename(SampleName = Sample.Name,
+                                   Allele = Allele.2)
+                        ) %>% 
+                        mutate(Allele = as.character(as.numeric(Allele))) %>% 
+                        unique()
+                      
+                      
+                      
+                      
+                      
+                      # Paste 1p traces into one data set
+                      target_contr_traces00 <- do.call(rbind, lapply(traces_1p,
+                                                                     function(contr){
+                                                                       read.csv(paste0(input_proved1p, contr)) %>% 
+                                                                         filter(!(Marker %in% c("AMEL", "Yindel", "DYS391"))) %>% 
+                                                                         wide_to_long()
+                                                                     })) %>% 
+                        mutate(Allele = as.character(as.numeric(Allele)),
+                               Height = as.numeric(Height)) %>% 
+                        group_by(SampleName, Marker, Allele) %>% 
+                        mutate(contr = paste0("c", as.character(as.numeric(substr(str_split(SampleName, "-")[[1]][3], 1,2))))) %>% 
+                        ungroup() %>% 
+                        group_by(SampleName) %>% 
+                        mutate(diltreat = str_split(SampleName, "-")[[1]][3],
+                               contdil = substr(diltreat, 1, 4),
+                               treat = gsub(contdil, "", diltreat),
+                               treattype = substr(treat, 1,1),
+                               treattype2 = case_when(
+                                 treattype=="a" ~ "Untreated",
+                                 treattype %in% c("b", "c", "d", "e") ~ "DNase",
+                                 treattype=="U" ~ "UV",
+                                 treattype=="S" ~ "Sonication",
+                                 treattype=="I" ~ "Humic acid"
+                               )) %>% 
+                        ungroup()
+                      
+                      
+                      # Add indicators for what is allelic and what is stutter
+                      target_contr_traces01 <- target_contr_traces00 %>% 
+                        left_join(target_contr_GTs01 %>% 
+                                    mutate(amallelic = 1),
+                                  by=join_by("contr"=="SampleName", "Marker"=="Marker", "Allele"=="Allele")) %>% 
+                        left_join(target_contr_GTs01 %>% 
+                                    mutate(Allele = as.character(as.numeric(Allele)-1),
+                                           amstutter = 1),
+                                  by=join_by("contr"=="SampleName", "Marker"=="Marker", "Allele"=="Allele")) %>% 
+                        mutate(amallelic = ifelse(is.na(amallelic), 0, amallelic),
+                               amstutter = ifelse(is.na(amstutter), 0, amstutter),
+                               
+                               Height2 = Height * ifelse(amallelic==1 | amstutter==1, 1, 0)) %>% 
+                        
+                        group_by(contr) %>% 
+                        mutate(total_rfu = sum(Height2)) %>% 
+                        ungroup()
+                      
+                      
+                      
+                      
+                      
+                      treatments <- target_contr_traces01 %>% 
+                        select(treattype, contr) %>% 
+                        unique() %>% 
+                        pull(treattype)
+                      
+                      
+                      # If there are only untreated traces then choose noise from largest untreated contributor
+                      if(length(treatments)==sum(str_detect(treatments, "a"))){
+                        
+                        noisefromthis <- target_contr_traces01 %>% 
+                          select(contr, total_rfu) %>% 
+                          unique() %>% 
+                          arrange(total_rfu) %>% 
+                          tail(1) %>% 
+                          pull(contr)
+                        
+                      } else{ #If there are other treatments besides untreated then take noise from largest treated contributor
+                        
+                        noisefromthis <- target_contr_traces01 %>% 
+                          filter(treattype!="a") %>% 
+                          select(contr, total_rfu) %>% 
+                          unique() %>% 
+                          arrange(total_rfu) %>% 
+                          tail(1) %>% 
+                          pull(contr)
+                      }
+                      
+                      
+                      
+                      
+                      
+                      ending <- target_contr_traces01 %>% 
+                        group_by(SampleName) %>% 
+                        mutate(origin = str_split(SampleName, "-")[[1]][3],
+                               temp = sub("GF","",str_split(SampleName, "-")[[1]][4])) %>% 
+                        ungroup() %>% 
+                        select(contr, total_rfu, origin, temp) %>% 
+                        unique() %>% 
+                        arrange(total_rfu)
+                      
+                      rfus <- ending$total_rfu
+                      contrs <- ending$contr
+                      origins <- ending$origin
+                      templates <- ending$temp
+                      
+                      # Choose noise only from biggest contributors and add all peaks up
+                      target_nomod <- target_contr_traces01 %>% 
+                        filter(contr == noisefromthis | (amallelic==1  | amstutter==1)) %>% 
+                        group_by(Marker, Allele) %>% 
+                        summarise(Height = sum(Height)) %>% 
+                        ungroup() 
+                      
+                      missing_markers <- setdiff(unique(target_contr_GTs01$Marker),
+                                                 unique(target_nomod$Marker))
+                      
+                      if(length(missing_markers)!=0){
+                        target_nomod2 <- target_nomod %>%
+                          rbind(data.frame(
+                            Marker = missing_markers,
+                            Allele = "",
+                            Height = ""
+                          )) %>% 
+                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus), collapse = "-")) %>% 
+                          arrange(Marker)
+                      } else{
+                        target_nomod2 <- target_nomod %>%
+                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus), collapse = "-")) %>% 
+                          arrange(Marker)
+                      }
+                      
+                      
+                      
+                      # Save results
+                      write.csv(target_nomod2,
+                                paste0(output_folder, NOC_mix, "p_nomod/", unique(target_nomod2$SampleName), ".csv"), row.names=F, quote = F)
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      # Modified 1p mixtures -------------------------------------------------------------
+                      traces_1p <- rowdata[, c("contr1_mod", "contr2_mod", "contr3_mod", "contr4_mod")] %>% as.matrix() %>% c()
+                      traces_1p <- traces_1p[!is.na(traces_1p)]
+                      
+                      origin_contributors <- paste0(str_split_i(traces_1p, "-", 3), "_", gsub("GF", "", str_split_i(traces_1p, "-", 4)))
+                      origin_contributors_ident <- as.character(as.numeric(substr(str_split_i(traces_1p, "-", 3), 1, 2)))
+                      
+                      target_contributors <- rowdata[, c("contr1", "contr2", "contr3", "contr4")] %>% as.matrix() %>% c()
+                      target_contributors <- target_contributors[!is.na(target_contributors)]
+                      
+                      settings <- data.frame(
+                        origin = paste0(origin_contributors),
+                        target = paste0("c", target_contributors),
+                        trace = traces_1p
+                      )
+                      
+                      origin_contrs00 <- do.call(rbind, lapply(settings$origin,
+                                                               function(contr){
+                                                                 read.csv(paste0(GTs_provedit, "c",
+                                                                                 as.character(as.numeric(substr(contr, 1, 2))),
+                                                                                 ".csv")) %>% 
+                                                                   mutate(Sample.Name = contr)
+                                                               })) %>% 
+                        mutate(Allele.1 = as.character(as.numeric(Allele.1)),
+                               Allele.2 = as.character(as.numeric(Allele.2))
+                        )
+                      
+                      # Paste GTs together
+                      origin_contr_GTs01 <- origin_contrs00 %>%
+                        select(Sample.Name, Marker, Allele.1) %>%
+                        rename(SampleName = Sample.Name,
+                               Allele = Allele.1) %>% 
+                        
+                        # Add Allele1 and 2 indicatos
+                        mutate(Allele1 = 1,
+                               Allele2 = 0,
+                               Stutter1 = 0,
+                               Stutter2 = 0) %>%
+                        rbind(
+                          origin_contrs00 %>%
+                            select(Sample.Name, Marker, Allele.2) %>%
+                            rename(SampleName = Sample.Name,
+                                   Allele = Allele.2) %>% 
+                            mutate(Allele1 = 0,
+                                   Allele2 = 1,
+                                   Stutter1 = 0,
+                                   Stutter2 = 0)
+                        ) %>%
+                        # Add -1 stutters
+                        rbind(
+                          origin_contrs00 %>%
+                            select(Sample.Name, Marker, Allele.1) %>%
+                            rename(SampleName = Sample.Name,
+                                   Allele = Allele.1) %>% 
+                            mutate(Allele = as.character(as.numeric(Allele)-1),
+                                   Allele1 = 0,
+                                   Allele2 = 0,
+                                   Stutter1 = 1,
+                                   Stutter2 = 0)
+                        ) %>% 
+                        rbind(
+                          origin_contrs00 %>%
+                            select(Sample.Name, Marker, Allele.2) %>%
+                            rename(SampleName = Sample.Name,
+                                   Allele = Allele.2) %>% 
+                            mutate(Allele = as.character(as.numeric(Allele)-1),
+                                   Allele1 = 0,
+                                   Allele2 = 0,
+                                   Stutter1 = 0,
+                                   Stutter2 = 1)
+                        ) %>% 
+                        arrange(SampleName, Marker, as.numeric(Allele)) %>% 
+                        left_join(settings,
+                                  by=join_by("SampleName"=="origin"))
+                      
+                      
+                      # Paste 1p traces into one data set
+                      origin_contr_traces00 <- do.call(rbind, lapply(traces_1p,
+                                                                     function(contr){
+                                                                       read.csv(paste0(input_proved1p, contr)) %>% 
+                                                                         filter(!(Marker %in% c("AMEL", "Yindel", "DYS391"))) %>% 
+                                                                         wide_to_long()
+                                                                     })) %>% 
+                        mutate(Allele = as.character(as.numeric(Allele)),
+                               Height = as.numeric(Height)) %>% 
+                        group_by(SampleName, Marker, Allele) %>% 
+                        mutate(contr = paste0(str_split_i(SampleName, "-", 3), "_", gsub("GF", "", str_split_i(SampleName, "-", 4)))) %>% 
+                        ungroup() %>% 
+                        group_by(SampleName) %>% 
+                        mutate(diltreat = str_split(SampleName, "-")[[1]][3],
+                               contdil = substr(diltreat, 1, 4),
+                               treat = gsub(contdil, "", diltreat),
+                               treattype = substr(treat, 1,1),
+                               treattype2 = case_when(
+                                 treattype=="a" ~ "Untreated",
+                                 treattype %in% c("b", "c", "d", "e") ~ "DNase",
+                                 treattype=="U" ~ "UV",
+                                 treattype=="S" ~ "Sonication",
+                                 treattype=="I" ~ "Humic acid"
+                               )) %>% 
+                        ungroup()
+                      
+                      
+                      origin_contr_traces01 <- origin_contr_traces00 %>% 
+                        full_join(origin_contr_GTs01,
+                                  by = join_by("contr"=="SampleName", "Marker"=="Marker", "Allele"=="Allele")) %>% 
+                        arrange(contr, Marker, as.numeric(Allele))
+                      
+                      
+                      
+                      origin_contr_traces02 <- origin_contr_traces01 %>% 
+                        select(-SampleName) %>% 
+                        relocate(contr) %>% 
+                        mutate(Height = ifelse(is.na(Height), 0, Height))
+                      
+                      
+                      treatments <- origin_contr_traces02 %>% 
+                        filter(!is.na(Allele1)) %>% 
+                        filter(Height != 0) %>% 
+                        select(treattype, contr) %>% 
+                        unique() %>% 
+                        pull(treattype)
+                      
+                      
+                      # If there are only untreated traces then choose noise from largest untreated contributor
+                      if(length(treatments)==sum(str_detect(treatments, "a"))){
+                        
+                        noisefromthis <- origin_contr_traces02 %>% 
+                          filter(!is.na(Allele1)) %>% 
+                          #filter(Height != 0) %>% 
+                          select(contr, Marker, Allele, Height) %>% 
+                          unique() %>% 
+                          group_by(contr) %>%
+                          summarise(heightsum = sum(Height)) %>%
+                          ungroup() %>%
+                          arrange(heightsum) %>%
+                          tail(1) %>%
+                          pull(contr)
+                        
+                      } else{ #If there are other treatments besides untreated then take noise from largest treated contributor
+                        
+                        noisefromthis <- origin_contr_traces02 %>% 
+                          filter(!is.na(Allele1)) %>% 
+                          filter(Height != 0) %>% 
+                          filter(treattype != "a") %>% 
+                          select(contr, Marker, Allele, Height) %>% 
+                          unique() %>% 
+                          group_by(contr) %>%
+                          summarise(heightsum = sum(Height)) %>%
+                          ungroup() %>%
+                          arrange(heightsum) %>%
+                          tail(1) %>%
+                          pull(contr)
+                      }
+                      
+                      
+                      
+                      noise <- origin_contr_traces02 %>% 
+                        filter(contr==noisefromthis & is.na(Allele1)) #remove new allelic peak locations later before pasting together
+                      
+                      
+                      
+                      # Remove noise and add the 4 components which will then be added up into peaks later
+                      origin_contr_traces03 <- origin_contr_traces02 %>% 
+                        filter(!is.na(Allele1)) %>% 
+                        
+                        #Add how many unique peaks there are for figuring out which setting is homoz, hetz1dif, hetzno1dif
+                        group_by(contr, Marker) %>% 
+                        mutate(n_unique_alleles = n_distinct(Allele)) %>% 
+                        
+                        #Add random components and stutter stuff
+                        mutate(
+                          q = runif(1, min=0.4, max=0.6)
+                        ) %>% 
+                        ungroup() %>% 
+                        left_join(stutter_percentages %>% 
+                                    select(Marker, p23),
+                                  by = join_by("Marker"=="Marker")) %>% 
+                        
+                        #Add the 4 components
+                        # Stutter 1
+                        mutate(
+                          S1 = case_when(
+                            n_unique_alleles == 2 & Stutter1 == 1 ~ round(q * Height),
+                            n_unique_alleles == 3 & Stutter1 == 1 ~ Height,
+                            n_unique_alleles == 4 & Stutter1 == 1 ~ Height,
+                            TRUE ~ 0
+                          )
+                        ) %>% 
+                        group_by(contr, Marker) %>% # We need to spread the value downwards for later calculations
+                        mutate(S1 = sum(S1)) %>% 
+                        ungroup() %>% 
+                        
+                        # Stutter 2
+                        mutate(
+                          S2 = case_when(
+                            n_unique_alleles == 2 & Stutter2 == 1 ~ Height - S1,
+                            n_unique_alleles == 3 & Stutter2 == 1 ~ round(p23 * Height),
+                            n_unique_alleles == 4 & Stutter2 == 1 ~ Height,
+                            TRUE ~ 0
+                          )
+                        ) %>% 
+                        group_by(contr, Marker) %>% 
+                        mutate(S2 = sum(S2)) %>% 
+                        ungroup() %>% 
+                        
+                        # Allele 1
+                        mutate(
+                          A1 = case_when(
+                            n_unique_alleles == 2 & Allele1 == 1 ~ round(q * Height),
+                            n_unique_alleles == 3 & Allele1 == 1 ~ Height - S2,
+                            n_unique_alleles == 4 & Allele1 == 1 ~ Height,
+                            TRUE ~ 0
+                          )
+                        ) %>% 
+                        group_by(contr, Marker) %>% 
+                        mutate(A1 = sum(A1)) %>% 
+                        ungroup() %>% 
+                        
+                        # Allele 2
+                        mutate(
+                          A2 = case_when(
+                            n_unique_alleles == 2 & Allele2 == 1 ~ Height - A1,
+                            n_unique_alleles == 3 & Allele2 == 1 ~ Height,
+                            n_unique_alleles == 4 & Allele2 == 1 ~ Height,
+                            TRUE ~ 0
+                          )
+                        ) %>% 
+                        group_by(contr, Marker) %>% 
+                        mutate(A2 = sum(A2)) %>% 
+                        ungroup() 
+                      
+                      
+                      # Test that they sum up correctly
+                      test <- origin_contr_traces03 %>% 
+                        select(contr, Marker, Allele, Height, S1, S2, A1, A2) %>% 
+                        unique() %>% 
+                        mutate(testsum1 = S1+S2+A1+A2) %>% 
+                        group_by(contr, Marker) %>% 
+                        mutate(testsum2 = sum(Height)) %>% 
+                        ungroup() %>% 
+                        mutate(t = testsum1-testsum2) %>% 
+                        filter(t != 0)
+                      
+                      if(nrow(test) != 0){
+                        warning("Error: selecting 4 components didn't go correctly!!!!")
+                        break
+                      }
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      # Target GTs
+                      target_contrs00 <- do.call(rbind, lapply(contributors,
+                                                               function(contr){
+                                                                 read.csv(paste0(GTs_provedit, "c", contr, ".csv"))
+                                                               })) %>% 
+                        mutate(Allele.1 = as.character(as.numeric(Allele.1)),
+                               Allele.2 = as.character(as.numeric(Allele.2))
+                        )
+                      
+                      
+                      # Paste GTs together
+                      target_contr_GTs01 <- target_contrs00 %>% 
+                        select(Sample.Name, Marker, Allele.1) %>%
+                        rename(SampleName = Sample.Name,
+                               Allele = Allele.1) %>% 
+                        
+                        # Add Allele1 and 2 indicators
+                        mutate(Allele1 = 1,
+                               Allele2 = 0,
+                               Stutter1 = 0,
+                               Stutter2 = 0) %>%
+                        rbind(
+                          target_contrs00 %>%
+                            select(Sample.Name, Marker, Allele.2) %>%
+                            rename(SampleName = Sample.Name,
+                                   Allele = Allele.2) %>% 
+                            mutate(Allele1 = 0,
+                                   Allele2 = 1,
+                                   Stutter1 = 0,
+                                   Stutter2 = 0)
+                        ) %>%
+                        # Add -1 stutters
+                        rbind(
+                          target_contrs00 %>%
+                            select(Sample.Name, Marker, Allele.1) %>%
+                            rename(SampleName = Sample.Name,
+                                   Allele = Allele.1) %>% 
+                            mutate(Allele = as.character(as.numeric(Allele)-1),
+                                   Allele1 = 0,
+                                   Allele2 = 0,
+                                   Stutter1 = 1,
+                                   Stutter2 = 0)
+                        ) %>% 
+                        rbind(
+                          target_contrs00 %>%
+                            select(Sample.Name, Marker, Allele.2) %>%
+                            rename(SampleName = Sample.Name,
+                                   Allele = Allele.2) %>% 
+                            mutate(Allele = as.character(as.numeric(Allele)-1),
+                                   Allele1 = 0,
+                                   Allele2 = 0,
+                                   Stutter1 = 0,
+                                   Stutter2 = 1)
+                        ) %>% 
+                        arrange(SampleName, Marker, as.numeric(Allele))
+                      
+                      
+                      
+                      
+                      # Add two sets of genotypes and peak heights together
+                      data_complete00 <- origin_contr_traces03 %>% 
+                        full_join(target_contr_GTs01 %>% 
+                                    rename(target_Allele = Allele),
+                                  by=join_by("target"=="SampleName", "Marker"=="Marker",
+                                             "Allele1"=="Allele1",
+                                             "Allele2"=="Allele2",
+                                             "Stutter1"=="Stutter1",
+                                             "Stutter2"=="Stutter2")) %>% 
+                        
+                        # Turn some to 0 to sum over later
+                        mutate(S1_new = ifelse(Stutter1==1, S1, 0),
+                               S2_new = ifelse(Stutter2==1, S2, 0),
+                               A1_new = ifelse(Allele1==1, A1, 0),
+                               A2_new = ifelse(Allele2==1, A2, 0))
+                      
+                      settings2 <- data_complete00 %>% 
+                        select(target, trace, Marker, S1, S2, A1, A2) %>% 
+                        unique() %>% 
+                        mutate(rfu = S1+S2+A1+A2) %>% 
+                        group_by(target, trace) %>% 
+                        summarise(total_rfu = sum(rfu)) %>% 
+                        ungroup()
+                      
+                      ### Checking that the rfus are equal to the origin traces' ones
+                      # t = origin_contr_traces01 %>% 
+                      #   filter(!(is.na(Allele1) | is.na(SampleName))) %>% 
+                      #   select(SampleName, Marker, Allele, Height) %>% 
+                      #   unique() %>% 
+                      #   group_by(SampleName) %>% 
+                      #   summarise(Height = sum(Height)) %>% 
+                      #   ungroup()
+                      
+                      data_complete01 <- data_complete00 %>% 
+                        select(target, Marker, target_Allele, S1_new, S2_new, A1_new, A2_new) %>% 
+                        
+                        #Pivot to longer format
+                        pivot_longer(cols=S1_new:A2_new) %>% 
+                        
+                        # Add up the peaks
+                        group_by(Marker, target_Allele) %>% 
+                        summarise(Height = sum(value)) %>% 
+                        ungroup() %>% 
+                        rename(Allele = target_Allele)
+                      
+                      
+                      # Add noise that doesnt yet exist as allelic/stutter peaks
+                      data_complete02 <- data_complete01 %>% 
+                        rbind(noise %>% 
+                                filter(!paste0(Marker, "_", Allele) %in% paste0(data_complete01$Marker, "_", data_complete01$Allele)) %>% 
+                                select(Marker, Allele, Height)) %>% 
+                        
+                        # Check which markers dont have any peaks, we need to keep them in our dataset even if they lose the peaks
+                        group_by(Marker) %>% 
+                        mutate(nopeaks = ifelse(sum(Height)==0, 1, 0)) %>% 
+                        ungroup()
+                      
+                      data_complete03 <- data_complete02 %>% 
+                        
+                        #First we take markers which have at least one peak
+                        filter(nopeaks==0) %>% 
+                        select(-nopeaks) %>% 
+                        filter(Height != 0) %>% 
+                        
+                        #And now we add the markers that have missing peaks
+                        rbind(data_complete02 %>% 
+                                filter(nopeaks==1) %>% 
+                                mutate(Allele = "",
+                                       Height = "") %>% 
+                                select(-nopeaks) %>% 
+                                unique())
+                      
+                      if(data_complete02 %>% 
+                         filter(nopeaks==1) %>% 
+                         select(-nopeaks) %>% 
+                         unique() %>% 
+                         nrow()!=0) print("Missing peaks")
+                      
+                      
+                      
+                      data_complete04 <- data_complete03 %>% 
+                        long_to_wide(samplelabel = paste0(c(settings2$target,
+                                                            str_split_i(settings2$trace, "-", 3),
+                                                            gsub("GF", "", str_split_i(settings2$trace, "-", 4)),
+                                                            settings2$total_rfu), collapse = "-")) %>% 
+                        arrange(Marker)
+                      
+                      
+                      # Save results
+                      write.csv(data_complete04,
+                                paste0(output_folder, NOC_mix, "p_mod/", unique(data_complete04$SampleName), ".csv"), row.names=F, quote = F)
+                      
+                      
+                      
+                      data.frame(
+                        real = unique(real_subset2$SampleName),
+                        unmod = unique(target_nomod2$SampleName),
+                        mod = unique(data_complete04$SampleName),
+                        NOC = NOC_mix
+                      )
+                      #print(round(row/nrow(mixtures01)*100, 2))
+                    }
+
+
+stopCluster(cl)
+
+
+write.csv(log_file,
+          paste0(output_folder, "logfile.csv"), row.names=F, quote = F)
