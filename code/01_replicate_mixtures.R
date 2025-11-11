@@ -146,7 +146,7 @@ mixtures00 <- all_mixes %>%
   #Fix duplicates -- some alleles have two height values, we take only the highest peak
   group_by(SampleName, Allele, Marker) %>% 
   summarise(Height = max(Height)) %>% 
-  ungroup() %>% 
+  ungroup() %>%  ### DELET UP TO HERE
   
   #Add contributors
   rowwise() %>% 

@@ -11,7 +11,6 @@
 # Code is easily adjustable to also condition on target mixture proportions
 # One could also adjust other parameters, fx if you want 1000 mixtures of the same set of contributors
 
-# TO DO: smoothen the duplicate situation / add data cleaning files separately
 
 
 

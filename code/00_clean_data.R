@@ -3,7 +3,7 @@
 # present which have 2 or more peak height data points, we only choose the highest peak).
 # Author: Kai Budrikas (kaib@itu.dk)
 
-
+# TO DO: adjust other files according to this
 
 
 
@@ -32,13 +32,15 @@ source("code/helping_functions.R") # Some functions for transforming the profile
 
 genotypes00 <- read_xlsx(paste0(input_provedit, "PROVEDIt_RD14-0003 GF Known Genotypes.xlsx")) %>% 
   select(-"Research ID") %>% 
-  rename(ID = "Sample ID") %>% 
-  mutate(ID = paste0("c", ID)) %>% 
+  rename("SampleName" = "Sample ID") %>% 
+  mutate(SampleName = paste0("c", SampleName)) %>%
+  rename("Sample Name" = SampleName) %>% 
   pivot_longer(cols=2:25, names_to = "Marker", values_to = "Alleles") %>% 
   filter(!(Marker %in% c("AMEL", "Yindel", "DYS391"))) %>% 
-  mutate(Allele1 = str_split_i(Alleles, ",", 1),
-         Allele2 = str_split_i(Alleles, ",", 2)) %>% 
-  select(-Alleles)
+  mutate("Allele 1" = str_split_i(Alleles, ",", 1),
+         "Allele 2" = str_split_i(Alleles, ",", 2)) %>% 
+  select(-Alleles) %>% 
+  arrange(Marker)
 
 
 write.csv(genotypes00,
@@ -47,8 +49,12 @@ write.csv(genotypes00,
 
 # Save also as single files for DNAStatistX
 
-for(contr in unique(genotypes00$ID)){
+for(contr in unique(genotypes00$`Sample Name`)){
+  subset <- genotypes00 %>% 
+    filter(`Sample Name`== contr)
   
+  write.csv(subset,
+            paste0(output_folder, "genotypes/", contr, ".csv"), row.names=F, quote = F)
 }
 
 
@@ -58,6 +64,53 @@ for(contr in unique(genotypes00$ID)){
 
 
 
+
+
+
+
+########## EVIDENCE PROFILES ##################################
+
+all_traces00 <- list.files(input_provedit, full.names = T, recursive = T)
+all_traces01 <- all_traces00[str_detect(all_traces00, "/15 sec/") & !str_detect(all_traces00, "/5-Person/")] #Choose only 15 sec ones and remove 5p
+
+all_traces02 <- all_traces01 %>% 
+  lapply(function(file) {
+    read.csv(file) %>%
+      mutate(across(everything(), as.character))
+  }) %>%
+  bind_rows() %>% 
+  relocate(Sample.File, Marker, starts_with("Allele"), starts_with("Height")) %>% 
+  
+  filter(!(Marker %in% c("AMEL", "Yindel", "DYS391"))) %>% 
+  select(contains(c("Sample.File", "Marker", "Allele", "Height"))) %>% 
+  select_if(function(x) !(all(is.na(x)) | all(x==""))) %>%  #Drop empty columns
+  rename(SampleName = Sample.File) %>%
+  mutate(across(contains(c("Allele", "Height")), as.character)) %>% 
+  
+  #Bring to long format
+  pivot_longer(
+    starts_with(c("Allele", "Height")),
+    cols_vary = "fastest",
+    names_to = c(".value"),
+    names_pattern = "(.)"
+  ) %>% 
+  rename(Allele = A,
+         Height = H) %>% 
+  
+  #Drop some rows
+  filter(!is.na(Allele) & Allele != "" & Allele != "OL") %>% 
+  mutate(Allele = as.character(as.numeric(Allele)),
+         Height = as.numeric(Height)) %>% 
+  
+  #Fix duplicates -- some alleles have two height values, we take only the highest peak
+  group_by(SampleName, Allele, Marker) %>% 
+  summarise(Height = max(Height)) %>% 
+  ungroup() %>% 
+  
+  arrange(SampleName, Marker, Allele)
+
+write.csv(all_traces02,
+          paste0(output_folder, "traces.csv"), row.names=F, quote = F)
 
 
 
