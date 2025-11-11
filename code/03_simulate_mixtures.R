@@ -23,8 +23,7 @@ library(tidyverse)
 library(doParallel)
 
 
-#setwd("..") #Project location
-#setwd("repDNAmixtures/")
+setwd("..") #Project location
 input_proved1p <- "data/data_provedit/1p_unfiltered/"  # 1p traces folder, must end with "/"
 output_folder <- "data/data_simulated/" # Folder for saving the results, must end with "/"
 GTs_provedit <- "data/data_provedit/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
