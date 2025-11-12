@@ -7,9 +7,9 @@
 # 3. Then we update the peaks and paste 1p traces together (SF+AT can be applied later if you wish by adjusting the 02 code)
 
 # In this code we shall generate 10 2-person mixtures for each combination of contributors in the "GTs_target" folder.
-# Let us assume we are only interested in untreated samples with 1p profile rfus being between 10000 and 10000.
+# Let us assume we are only interested in untreated samples with 1p profile rfus being between 10000 and 100000.
 # Code is easily adjustable to also condition on target mixture proportions
-# One could also adjust other parameters, fx if you want 1000 mixtures of the same set of contributors
+# One could also adjust other parameters, fx if you want 1000 mixtures of the same pair of contributors
 
 
 
@@ -282,28 +282,12 @@ foreach(mixident = unique(combs01$rep_mix),
         .combine=rbind,
         .packages = c("tidyverse")) %dopar% {
           
-          # for(mixident in unique(combs01$rep_mix)){
-          
           rowdata <- combs01 %>% 
             filter(rep_mix == mixident)
           
           
-          
-          
-          
-          
-          
-          # # Modified 1p mixtures -------------------------------------------------------------
-          
-          # 
-          # origin_contributors <- paste0(str_split_i(traces_1p, "-", 3), "_", gsub("GF", "", str_split_i(traces_1p, "-", 4)))
-          # origin_contributors_ident <- as.character(as.numeric(substr(str_split_i(traces_1p, "-", 3), 1, 2)))
-          # 
-          # target_contributors <- rowdata[, c("contr1", "contr2", "contr3", "contr4")] %>% as.matrix() %>% c()
-          # target_contributors <- target_contributors[!is.na(target_contributors)]
-          
           settings <- data.frame(
-            origin = paste0("c",rowdata$contr),  #paste0(origin_contributors),
+            origin = paste0("c",rowdata$contr), 
             target = rowdata$contr_target,
             trace = rowdata$origin_trace
           )
@@ -598,15 +582,6 @@ foreach(mixident = unique(combs01$rep_mix),
               settings %>% 
                 select(target, trace)
             )
-          
-          ### Checking that the rfus are equal to the origin traces' ones
-          # t = origin_contr_traces01 %>% 
-          #   filter(!(is.na(Allele1) | is.na(SampleName))) %>% 
-          #   select(SampleName, Marker, Allele, Height) %>% 
-          #   unique() %>% 
-          #   group_by(SampleName) %>% 
-          #   summarise(Height = sum(Height)) %>% 
-          #   ungroup()
           
           data_complete01 <- data_complete00 %>% 
             select(target, Marker, target_Allele, S1_new, S2_new, A1_new, A2_new) %>% 
