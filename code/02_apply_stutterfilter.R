@@ -11,7 +11,7 @@ library(openxlsx)
 
 setwd("..")
 source("code/helping_functions.R") # Some functions to help
-genotypes_folder <- "data/data_provedit/genotypes/" #Folder for genotypes, must have "/" at the end. Only used for making sure which markers to look at.
+genotypes_folder <- "data/data_provedit_cleaned/genotypes/" #Folder for genotypes, must have "/" at the end. Only used for making sure which markers to look at.
 results_folder <- "data/data_replicated/" #Where to save the results, must have "/" at the end
 
 
@@ -140,7 +140,8 @@ loop <- foreach(trace=all_files,
                   }
                   
                   to_location <- paste0(str_split(trace, "/")[[1]][1], "/",
-                                        str_split(trace, "/")[[1]][2],
+                                        str_split(trace, "/")[[1]][2], "/",
+                                        str_split(trace, "/")[[1]][3],
                                         "_sFRiman")
                   write.csv(trace_wide, paste0(to_location, "/", unique(trace_wide$SampleName), ".csv"),
                             row.names=F, quote = F)
@@ -169,7 +170,7 @@ traces <- all_files_afterfilter %>%
   rename("trace" = ".") %>% 
   filter(!str_detect(trace, "traces_references")) %>% 
   rowwise() %>% 
-  mutate(NOC = as.numeric(str_split(str_split_i(trace, "/", 2), "p")[[1]][1]),
+  mutate(NOC = as.numeric(str_split(str_split_i(trace, "/", 3), "p")[[1]][1]),
          
          contr1 = ifelse(str_detect(trace, "real"),
                          paste0("c",str_split(trace, "-")[[1]][4]),
@@ -189,7 +190,7 @@ traces <- all_files_afterfilter %>%
                                 str_split(trace, "-")[[1]][4]),
                          NA)) %>%
   
-  mutate(joinby = gsub(".csv", "", str_split(trace, "/")[[1]][3])) %>% 
+  mutate(joinby = gsub(".csv", "", str_split(trace, "/")[[1]][4])) %>% 
   ungroup() %>% 
   full_join(keys,
             by=join_by("joinby", "NOC")) %>% 

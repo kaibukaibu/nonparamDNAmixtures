@@ -23,9 +23,9 @@ library(doParallel)
 
 
 setwd("..") #Project location
-input_proved1p <- "data/data_provedit/1p_unfiltered/"  # 1p traces folder, must end with "/"
+input_provedit <- "data/data_provedit_cleaned/traces.csv" # Provedit trace profiles
 output_folder <- "data/data_simulated/" # Folder for saving the results, must end with "/"
-GTs_provedit <- "data/data_provedit/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
+GTs_provedit <- "data/data_provedit_cleaned/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
 GTs_target <- "data/target_genotypes/" # Folder for the genotypes of contributors for whom we wish to create mixtures, must end with "/"
 source("code/helping_functions.R") # Some functions for transforming the profile data from long to wide format and vice versa
 set.seed(66)
@@ -130,62 +130,61 @@ GTs01 <- rbind(
 
 
 # 1p traces
-provedit1p00 <- list.files(input_proved1p) %>% 
-  as.data.frame() %>% 
-  rename("trace" = ".") %>% 
+provedit1p <- read.csv2(input_provedit, sep = ",") %>% 
+  
+  #Add NOC and take only 1ps
+  mutate(NOC = str_count(SampleName, ";") + 1) %>% 
+  filter(NOC == 1) %>%  
+  rename(trace = SampleName) %>% 
+  
   group_by(trace) %>% 
   mutate(contr = as.character(as.numeric(substr(str_split(trace, "-")[[1]][3],1,2))),
-         DNA = as.numeric(gsub("G", "", gsub("F", "", rev(str_split(trace, "-")[[1]])[2]))),
-         diltreat = str_split(trace, "-")[[1]][3],
-         contdil = substr(diltreat, 1, 4),
-         treat = gsub(contdil, "", diltreat),
-         treattype = substr(treat, 1,1),
+         DNA = as.numeric(gsub("H", "", gsub("G", "", gsub("F", "", rev(str_split(trace, "-")[[1]])[2]))))
+  ) %>% 
+  mutate(diltreat = ifelse(NOC==1,
+                           str_split(trace, "-")[[1]][3],
+                           str_split(trace, "-")[[1]][5]),
+         
          treattype2 = case_when(
-           treattype=="a" ~ "Untreated",
-           treattype %in% c("b", "c", "d", "e") ~ "DNase",
-           treattype=="U" ~ "UV",
-           treattype=="S" ~ "Sonication",
-           treattype=="I" ~ "Humic acid"
+           substr(diltreat, nchar(diltreat), nchar(diltreat))=="a" ~ "Untreated",
+           substr(diltreat, nchar(diltreat), nchar(diltreat)) %in% c("b", "c", "d", "e") ~ "DNase",
+           
+           str_detect(diltreat, "U") ~ "UV",
+           
+           str_detect(diltreat, "S") ~ "Sonication",
+           
+           str_detect(diltreat, "I") ~ "Humic Acid",
+           
+           TRUE ~ "Fragmentase"
          )) %>% 
-  filter(treat!="") %>% 
   ungroup() %>% 
-  mutate(rfu = NA) %>% 
   
+  # Filter out everything but allelic and -1 stutter peaks after adding that info
+  left_join(
+    GTs01 %>% 
+      mutate(contr1_allele = 1),
+    by = join_by("contr"=="cont", "Marker"=="Marker", "Allele"=="Allele")
+  ) %>% 
+  
+  mutate(
+    sumsum = ifelse(is.na(contr1_allele), 0, contr1_allele)
+  ) %>% 
+  
+  group_by(trace) %>% 
+  mutate(rfu = sum(as.numeric(Height) * sumsum)) %>% 
   ungroup()
 
 
-# add total rfu
-for(i in 1:nrow(provedit1p00)){
-  trace_i <- read.csv(paste0(input_proved1p, provedit1p00$trace[i])) %>% 
-    filter(!Marker %in% c("AMEL", "Yindel", "DYS391")) %>% 
-    wide_to_long2() %>% 
-    
-    #Fix duplicates -- some alleles have two height values, we take only the highest peak
-    group_by(SampleName, Allele, Marker) %>% 
-    summarise(Height = max(Height)) %>% 
-    ungroup() %>% 
-    
-    mutate(contr = as.character(as.numeric(substr(str_split(SampleName, "-")[[1]][3],1,2)))) %>% 
-    
-    # Filter out everything but allelic and -1 stutter peaks after adding that info
-    left_join(
-      GTs01 %>% 
-        mutate(contr1_allele = 1),
-      by = join_by("contr"=="cont", "Marker"=="Marker", "Allele"=="Allele")
-    ) %>% 
-    
-    mutate(
-      sumsum = ifelse(is.na(contr1_allele), 0, contr1_allele)
-    ) %>% 
-    
-    mutate(sum_perrow = sum(as.numeric(Height) * sumsum))
-  
-  provedit1p00[i, "rfu"] <- unique(trace_i$sum_perrow)
-}
+
+
+
+provedit1p_noheights <- provedit1p %>% 
+  select(trace, contr, NOC, treattype2, rfu) %>% 
+  unique()
 
 
 # Filter here
-provedit1p_subset <- provedit1p00 %>% 
+provedit1p_subset <- provedit1p_noheights %>% 
   filter(treattype2 == treatment_type &
            rfu_min <= rfu &
            rfu_max >= rfu)
@@ -368,33 +367,20 @@ foreach(mixident = unique(combs01$rep_mix),
           
           # Paste 1p traces into one data set
           origin_contr_traces00 <- do.call(rbind, lapply(traces_1p,
-                                                         function(contr){
-                                                           read.csv(paste0(input_proved1p, contr)) %>% 
-                                                             filter(!(Marker %in% c("AMEL", "Yindel", "DYS391"))) %>% 
-                                                             wide_to_long()
+                                                         function(con){
+                                                           provedit1p %>% 
+                                                             filter(con == trace)
                                                          })) %>% 
+            rename(SampleName=trace) %>% 
             mutate(Allele = as.character(as.numeric(Allele)),
                    Height = as.numeric(Height)) %>% 
             group_by(SampleName) %>% 
-            mutate(contr = paste0("c",as.character(as.numeric(substr(str_split_i(SampleName, "-", 3),1,2))))) %>% 
+            mutate(contr = paste0("c", contr)) %>% 
             ungroup() %>% 
             left_join(settings %>% 
                         mutate(trace = gsub(".csv", "", trace)) %>% 
                         select(target, trace), by=join_by("SampleName"=="trace")) %>% 
-            ungroup() #%>% 
-          # group_by(SampleName) %>% 
-          # mutate(diltreat = str_split(SampleName, "-")[[1]][3],
-          #        contdil = substr(diltreat, 1, 4),
-          #        treat = gsub(contdil, "", diltreat),
-          #        treattype = substr(treat, 1,1),
-          #        treattype2 = case_when(
-          #          treattype=="a" ~ "Untreated",
-          #          treattype %in% c("b", "c", "d", "e") ~ "DNase",
-          #          treattype=="U" ~ "UV",
-          #          treattype=="S" ~ "Sonication",
-          #          treattype=="I" ~ "Humic acid"
-          #        )) %>% 
-          # ungroup()
+            ungroup()
           
           
           origin_contr_traces01 <- origin_contr_traces00 %>% 
@@ -412,18 +398,9 @@ foreach(mixident = unique(combs01$rep_mix),
             mutate(Height = ifelse(is.na(Height), 0, Height))
           
           
-          # treatments <- origin_contr_traces02 %>% 
-          #   filter(!is.na(Allele1)) %>% 
-          #   filter(Height != 0) %>% 
-          #   select(treattype, contr) %>% 
-          #   unique() %>% 
-          #   pull(treattype)
-          
-          
           
           noisefromthis <- origin_contr_traces02 %>% 
             filter(!is.na(Allele1)) %>% 
-            #filter(Height != 0) %>% 
             select(contr, target, Marker, Allele, Height) %>% 
             unique() %>% 
             group_by(contr, target) %>%
@@ -695,16 +672,7 @@ foreach(mixident = unique(combs01$rep_mix),
           # Save results
           write.csv(data_complete04,
                     paste0(output_folder, unique(data_complete04$SampleName), ".csv"), row.names=F, quote = F)
-          
-          
-          
-          # data.frame(
-          #   real = unique(real_subset2$SampleName),
-          #   unmod = unique(target_nomod2$SampleName),
-          #   mod = unique(data_complete04$SampleName),
-          #   NOC = NOC_mix
-          # )
-          #print(round(row/nrow(mixtures01)*100, 2))
+      
         }
 
 

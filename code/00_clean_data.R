@@ -15,7 +15,7 @@ library(tidyverse)
 library(readxl)
 
 
-setwd("C:/Users/kaib/OneDrive - ITU/Documents/GitHub/repDNAmixtures/") #Project location
+setwd("..") #Project location
 input_provedit <- "data/data_provedit/PROVEDIt_1-5-Person CSVs UnFiltered_3500_GF29cycles/" # Provedit mixtures folder
 output_folder <- "data/data_provedit_cleaned/" # Folder for saving the results, must end with "/"
 source("code/helping_functions.R") # Some functions for transforming the profile data from long to wide format and vice versa
