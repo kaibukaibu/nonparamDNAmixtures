@@ -12,7 +12,7 @@ library(tidyverse)
 library(doParallel)
 
 
-setwd("..") #Project location
+setwd("C:/Users/kaib/OneDrive - ITU/Documents/GitHub/repDNAmixtures") #Project location
 input_provedit <- "data/data_provedit_cleaned/traces.csv" # Provedit trace profiles
 output_folder <- "data/data_replicated/" # Folder for saving the results, must end with "/"
 GTs_provedit <- "data/data_provedit_cleaned/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
@@ -116,7 +116,11 @@ GTs01 <- rbind(
 mixtures00 <- read.csv2(input_provedit, sep = ",") %>% 
   
   #Add NOC and take only mixtures
-  mutate(NOC = str_count(SampleName, ";") + 1) %>% 
+  mutate(NOC = str_count(SampleName, ";") + 1,
+         Qindex = str_split_i(str_split_i(SampleName, "Q", 2),
+                            "_", 1),
+         QLAND = ifelse(Qindex=="LAND", 1, 0),
+         Qindex = as.numeric(Qindex)) %>% #produces NAs but that's fine
   filter(NOC != 1) %>% 
   
   #Add contributors
@@ -212,7 +216,7 @@ write.csv(k,
 # For looping later
 mixtures01 <- mixtures00 %>% 
   select(SampleName, treattype2, contr1, contr2, contr3, contr4,
-         rfu1, rfu2, rfu3, rfu4, NOC) %>% 
+         rfu1, rfu2, rfu3, rfu4, NOC, Qindex, QLAND) %>% 
   mutate(contr1_mod = NA,
          contr2_mod = NA,
          contr3_mod = NA,
@@ -221,7 +225,17 @@ mixtures01 <- mixtures00 %>%
          contr1_nomod = NA,
          contr2_nomod = NA,
          contr3_nomod = NA,
-         contr4_nomod = NA) %>% 
+         contr4_nomod = NA,
+         
+         contr1_modQ = NA,
+         contr2_modQ = NA,
+         contr3_modQ = NA,
+         contr4_modQ = NA,
+         
+         contr1_nomodQ = NA,
+         contr2_nomodQ = NA,
+         contr3_nomodQ = NA,
+         contr4_nomodQ = NA) %>% 
   unique()
 
 
@@ -244,7 +258,11 @@ mixtures00 %>%
 provedit1p <- read.csv2(input_provedit, sep = ",") %>% 
   
   #Add NOC and take only 1ps
-  mutate(NOC = str_count(SampleName, ";") + 1) %>% 
+  mutate(NOC = str_count(SampleName, ";") + 1,
+         Qindex = str_split_i(str_split_i(SampleName, "Q", 2),
+                              "_", 1),
+         QLAND = ifelse(Qindex=="LAND", 1, 0),
+         Qindex = as.numeric(Qindex)) %>% 
   filter(NOC == 1) %>%  
   rename(trace = SampleName) %>% 
   
@@ -290,75 +308,20 @@ provedit1p <- read.csv2(input_provedit, sep = ",") %>%
 
 
 provedit1p_noheights <- provedit1p %>% 
-  select(trace, contr, NOC, treattype2, rfu) %>% 
+  select(trace, contr, NOC, treattype2, rfu, QLAND, Qindex) %>% 
   unique()
 
 
 
 
 
-diff_function <- function(diff) abs(diff) 
+diff_function <- function(diff) abs(diff)
+factor_p <- 2
 
 # Find most similar 1p traces for contributors
-for(row in 1:nrow(mixtures01)){
+for(row in 1:nrow(mixtures01)){ 
   
-  #Mixes with modified peaks first - mod
-  trace1_sametreat <- provedit1p_noheights %>% 
-    filter(treattype2 == mixtures01[row,]$treattype2 & 
-             contr != mixtures01[row,]$contr1) %>% 
-    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu1)) %>% 
-    arrange(rfu_diff) %>% 
-    head(1) %>% 
-    pull(trace)
-  
-  trace2_sametreat <- provedit1p_noheights %>% 
-    filter(treattype2 == mixtures01[row,]$treattype2,
-           trace != trace1_sametreat & 
-             contr != mixtures01[row,]$contr2) %>% 
-    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu2)) %>% 
-    arrange(rfu_diff) %>% 
-    head(1) %>% 
-    pull(trace)
-  
-  trace3_sametreat <- provedit1p_noheights %>% 
-    filter(treattype2 == mixtures01[row,]$treattype2,
-           trace != trace1_sametreat,
-           trace != trace2_sametreat & 
-             contr != mixtures01[row,]$contr3) %>% 
-    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu3)) %>% 
-    arrange(rfu_diff) %>% 
-    filter(!is.na(rfu_diff)) %>% 
-    head(1) %>% 
-    pull(trace)
-  
-  trace3_sametreat <- ifelse(length(trace3_sametreat)==0, NA, trace3_sametreat)
-  
-  trace4_sametreat <- provedit1p_noheights %>% 
-    filter(treattype2 == mixtures01[row,]$treattype2,
-           trace != trace1_sametreat,
-           trace != trace2_sametreat,
-           trace != trace3_sametreat & 
-             contr != mixtures01[row,]$contr4) %>% 
-    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu4)) %>% 
-    arrange(rfu_diff) %>% 
-    filter(!is.na(rfu_diff)) %>% 
-    head(1) %>% 
-    pull(trace)
-  
-  trace4_sametreat <- ifelse(length(trace4_sametreat)==0, NA, trace4_sametreat)
-  
-  
-  mixtures01[row, "contr1_mod"] <- trace1_sametreat
-  mixtures01[row, "contr2_mod"] <- trace2_sametreat
-  mixtures01[row, "contr3_mod"] <- trace3_sametreat
-  mixtures01[row, "contr4_mod"] <- trace4_sametreat
-  
-  
-  
-  
-  
-  
-  # Mixtures with unmodified peaks - nomod
+  ###################### Mixtures with unmodified peaks - nomod (SET1)
   trace1_sametreatsamecontr <- provedit1p_noheights %>% 
     filter(treattype2 == mixtures01[row,]$treattype2,
            contr == mixtures01[row,]$contr1) %>% 
@@ -443,6 +406,169 @@ for(row in 1:nrow(mixtures01)){
   mixtures01[row, "contr2_nomod"] <- trace2_sametreatsamecontr
   mixtures01[row, "contr3_nomod"] <- trace3_sametreatsamecontr
   mixtures01[row, "contr4_nomod"] <- trace4_sametreatsamecontr
+  
+  
+  
+  
+  
+  
+  
+  ########################## Mixes with modified peaks - mod (SET2)
+  trace1_sametreat <- provedit1p_noheights %>% 
+    filter(treattype2 == mixtures01[row,]$treattype2 & 
+             contr != mixtures01[row,]$contr1) %>% 
+    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu1)) %>% 
+    arrange(rfu_diff) %>% 
+    head(1) %>% 
+    pull(trace)
+  
+  trace2_sametreat <- provedit1p_noheights %>% 
+    filter(treattype2 == mixtures01[row,]$treattype2,
+           trace != trace1_sametreat & 
+             contr != mixtures01[row,]$contr2) %>% 
+    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu2)) %>% 
+    arrange(rfu_diff) %>% 
+    head(1) %>% 
+    pull(trace)
+  
+  trace3_sametreat <- provedit1p_noheights %>% 
+    filter(treattype2 == mixtures01[row,]$treattype2,
+           trace != trace1_sametreat,
+           trace != trace2_sametreat & 
+             contr != mixtures01[row,]$contr3) %>% 
+    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu3)) %>% 
+    arrange(rfu_diff) %>% 
+    filter(!is.na(rfu_diff)) %>% 
+    head(1) %>% 
+    pull(trace)
+  
+  trace3_sametreat <- ifelse(length(trace3_sametreat)==0, NA, trace3_sametreat)
+  
+  trace4_sametreat <- provedit1p_noheights %>% 
+    filter(treattype2 == mixtures01[row,]$treattype2,
+           trace != trace1_sametreat,
+           trace != trace2_sametreat,
+           trace != trace3_sametreat & 
+             contr != mixtures01[row,]$contr4) %>% 
+    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu4)) %>% 
+    arrange(rfu_diff) %>% 
+    filter(!is.na(rfu_diff)) %>% 
+    head(1) %>% 
+    pull(trace)
+  
+  trace4_sametreat <- ifelse(length(trace4_sametreat)==0, NA, trace4_sametreat)
+  
+  
+  mixtures01[row, "contr1_mod"] <- trace1_sametreat
+  mixtures01[row, "contr2_mod"] <- trace2_sametreat
+  mixtures01[row, "contr3_mod"] <- trace3_sametreat
+  mixtures01[row, "contr4_mod"] <- trace4_sametreat
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  ################## Mixtures with unmodified peaks and degradation - nomodQ (SET3)
+  trace1_sametreatsamecontr <- provedit1p_noheights %>% 
+    filter(contr == mixtures01[row,]$contr1) %>% 
+    filter(if (mixtures01[row,]$QLAND==1){
+      QLAND == 1
+    } else{
+      QLAND == 0
+    }) %>% 
+    filter(if (mixtures01[row,]$QLAND==0){
+      1/factor_p <= (Qindex-mixtures01[row,]$Qindex) / mixtures01[row,]$Qindex & #Checking the interval
+        (Qindex-mixtures01[row,]$Qindex) / mixtures01[row,]$Qindex <= factor_p
+    } else{}) %>% 
+    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu1)) %>% 
+    arrange(rfu_diff) %>% 
+    head(1) %>% 
+    pull(trace)
+  
+  if(length(trace1_sametreatsamecontr)==0){
+    trace1_sametreatsamecontr <- provedit1p_noheights %>% 
+      filter(contr == mixtures01[row,]$contr1) %>% 
+      mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu1)) %>% 
+      arrange(rfu_diff) %>% 
+      head(1) %>% 
+      pull(trace)
+  }
+  
+  trace2_sametreatsamecontr <- provedit1p_noheights %>% 
+    filter(contr == mixtures01[row,]$contr2) %>% 
+    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu2)) %>% 
+    arrange(rfu_diff) %>% 
+    head(1) %>% 
+    pull(trace)
+  
+  if(length(trace2_sametreatsamecontr)==0){
+    trace2_sametreatsamecontr <- provedit1p_noheights %>% 
+      filter(contr == mixtures01[row,]$contr2) %>% 
+      mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu2)) %>% 
+      arrange(rfu_diff) %>% 
+      head(1) %>% 
+      pull(trace)
+  }
+  
+  trace3_sametreatsamecontr <- provedit1p_noheights %>% 
+    filter(#treattype2 == mixtures01[row,]$treattype2,
+           contr == mixtures01[row,]$contr3) %>% 
+    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu3)) %>% 
+    arrange(rfu_diff) %>% 
+    head(1) %>% 
+    pull(trace)
+  
+  if(length(trace3_sametreatsamecontr)==0){
+    trace3_sametreatsamecontr <- provedit1p_noheights %>% 
+      filter(#treattype2 == "Untreated",
+             contr == mixtures01[row,]$contr3) %>% 
+      mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu3)) %>% 
+      arrange(rfu_diff) %>% 
+      head(1) %>% 
+      pull(trace)
+  }
+  
+  if(length(trace3_sametreatsamecontr)==0){
+    trace3_sametreatsamecontr <- NA #if still missing then because NOC=2
+  }
+  
+  trace4_sametreatsamecontr <- provedit1p_noheights %>% 
+    filter(#treattype2 == mixtures01[row,]$treattype2,
+           contr == mixtures01[row,]$contr4) %>% 
+    mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu4)) %>% 
+    arrange(rfu_diff) %>% 
+    head(1) %>% 
+    pull(trace)
+  
+  if(length(trace4_sametreatsamecontr)==0){
+    trace4_sametreatsamecontr <- provedit1p_noheights %>% 
+      filter(#treattype2 == "Untreated",
+             contr == mixtures01[row,]$contr4) %>% 
+      mutate(rfu_diff = diff_function(rfu-mixtures01[row,]$rfu4)) %>% 
+      arrange(rfu_diff) %>% 
+      head(1) %>% 
+      pull(trace)
+  }
+  
+  if(length(trace4_sametreatsamecontr)==0){
+    trace4_sametreatsamecontr <- NA #if still missing then because NOC=2 or 3
+  }
+  
+  mixtures01[row, "contr1_nomod"] <- trace1_sametreatsamecontr
+  mixtures01[row, "contr2_nomod"] <- trace2_sametreatsamecontr
+  mixtures01[row, "contr3_nomod"] <- trace3_sametreatsamecontr
+  mixtures01[row, "contr4_nomod"] <- trace4_sametreatsamecontr
+  
+  
+  
+  
+  
+  
+  
   
   
   
