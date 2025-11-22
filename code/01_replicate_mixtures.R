@@ -12,7 +12,7 @@ library(tidyverse)
 library(doParallel)
 
 
-setwd("C:/Users/kaib/OneDrive - ITU/Documents/GitHub/repDNAmixtures") #Project location
+setwd("..") #Project location
 input_provedit <- "data/data_provedit_cleaned/traces.csv" # Provedit trace profiles
 output_folder <- "data/data_replicated/" # Folder for saving the results, must end with "/"
 GTs_provedit <- "data/data_provedit_cleaned/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
@@ -1007,12 +1007,14 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                             Allele = "",
                             Height = ""
                           )) %>% 
-                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus, Qindics), collapse = "-")) %>% 
+                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus#, Qindics
+                                                              ), collapse = "-")) %>% 
                           arrange(Marker)
                         print("Missing markers")
                       } else{
                         target_nomod2 <- target_nomod %>%
-                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus, Qindics), collapse = "-")) %>% 
+                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus#, Qindics
+                                                              ), collapse = "-")) %>% 
                           arrange(Marker)
                       }
                       
@@ -1415,8 +1417,9 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                         long_to_wide(samplelabel = paste0(c(settings2$target,
                                                             str_split_i(settings2$trace, "-", 3),
                                                             gsub("GF", "", str_split_i(settings2$trace, "-", 4)),
-                                                            settings2$total_rfu,
-                                                            settings2$Qindic), collapse = "-")) %>% 
+                                                            settings2$total_rfu#,
+                                                            #settings2$Qindic
+                                                            ), collapse = "-")) %>% 
                         arrange(Marker)
                       
                       
@@ -1556,12 +1559,14 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                             Allele = "",
                             Height = ""
                           )) %>% 
-                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus, Qindics), collapse = "-")) %>% 
+                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus#, Qindics
+                                                              ), collapse = "-")) %>% 
                           arrange(Marker)
                         print("Missing markers")
                       } else{
                         target_nomod2Q <- target_nomod %>%
-                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus, Qindics), collapse = "-")) %>% 
+                          long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus#, Qindics
+                                                              ), collapse = "-")) %>% 
                           arrange(Marker)
                       }
                       
@@ -1964,8 +1969,9 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                         long_to_wide(samplelabel = paste0(c(settings2$target,
                                                             str_split_i(settings2$trace, "-", 3),
                                                             gsub("GF", "", str_split_i(settings2$trace, "-", 4)),
-                                                            settings2$total_rfu,
-                                                            settings2$Qindic), collapse = "-")) %>% 
+                                                            settings2$total_rfu#,
+                                                            #settings2$Qindic
+                                                            ), collapse = "-")) %>% 
                         arrange(Marker)
                       
                       
@@ -2006,12 +2012,7 @@ openxlsx::write.xlsx(log_file,
                      paste0(output_folder, "logfile.xlsx"))
 
 
-test <- mixtures01 %>% 
-  rowwise() %>% 
-  mutate(mod = paste(sort(c(contr1_modQ, contr2_modQ, contr3_modQ, contr4_modQ)), collapse="____")) %>% 
-  group_by(mod) %>% 
-  mutate(n=n())
 
 
-#TO DO: fix ordering of contributors?
+
 
