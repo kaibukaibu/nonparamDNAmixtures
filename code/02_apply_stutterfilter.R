@@ -12,7 +12,7 @@ library(openxlsx)
 setwd("..") #Project location
 source("code/helping_functions.R") # Some functions to help
 genotypes_folder <- "data/data_provedit_cleaned/genotypes/" #Folder for genotypes, must have "/" at the end. Only used for making sure which markers to look at.
-results_folder <- "data/data_replicated/" #Where to save the results, must have "/" at the end
+results_folder <- "data/data_replicated_noisy/" #Where to save the results, must have "/" at the end
 
 
 
