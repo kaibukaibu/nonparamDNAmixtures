@@ -14,7 +14,7 @@ library(doParallel)
 
 setwd("..") #Project location
 input_provedit <- "data/data_provedit_cleaned/traces.csv" # Provedit trace profiles
-output_folder <- "data/data_replicated/" # Folder for saving the results, must end with "/"
+output_folder <- "data/data_replicated_2_3/" # Folder for saving the results, must end with "/"
 GTs_provedit <- "data/data_provedit_cleaned/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
 source("code/helping_functions.R") # Some functions for transforming the profile data from long to wide format and vice versa
 
@@ -318,7 +318,7 @@ provedit1p_noheights <- provedit1p %>%
 
 
 diff_function <- function(diff) abs(diff)
-factor_p <- 0.75
+factor_p <- 2#0.75
 factor_p_multip <- 3 #for extra sampling space
 
 # Find most similar 1p traces for contributors
