@@ -12,12 +12,12 @@ library(tidyverse)
 library(doParallel)
 
 
-setwd("..") #Project location
+#setwd("..") #Project location
 input_provedit <- "data/data_provedit_cleaned/traces.csv" # Provedit trace profiles
-output_folder <- "data/data_replicated_2_3/" # Folder for saving the results, must end with "/"
+output_folder <- "data/data_replicated/" # Folder for saving the results, must end with "/"
 GTs_provedit <- "data/data_provedit_cleaned/genotypes/" # Folder for the genotypes of the contributors, must end with "/"
 source("code/helping_functions.R") # Some functions for transforming the profile data from long to wide format and vice versa
-
+set.seed(66)
 
 
 
@@ -298,8 +298,6 @@ provedit1p_noheights <- provedit1p %>%
 
 
 diff_function <- function(diff) abs(diff)
-factor_p <- 2#0.75
-factor_p_multip <- 3 #for extra sampling space
 
 # Find most similar 1p traces for contributors
 # If the loop breaks unexpectedly, then there likely isn't a 1p trace with the wished properties
@@ -469,6 +467,7 @@ registerDoParallel(cl)
 log_file <- foreach(row = 1:nrow(mixtures01),
                     .combine=rbind,
                     .packages = c("tidyverse")) %dopar% {
+# for(i in 1:nrow(mixtures01)){
                       rowdata <- mixtures01[row,]
                       
                       NOC_mix <- rowdata$NOC
@@ -634,13 +633,13 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                             Height = ""
                           )) %>% 
                           long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus
-                                                              ), collapse = "-")) %>% 
+                          ), collapse = "-")) %>% 
                           arrange(Marker)
                         print("Missing markers")
                       } else{
                         target_nomod2 <- target_nomod %>%
                           long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus
-                                                              ), collapse = "-")) %>% 
+                          ), collapse = "-")) %>% 
                           arrange(Marker)
                       }
                       
@@ -815,6 +814,15 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                       
                       # Remove noise and add the 4 components which will then be added up into peaks later
                       origin_contr_traces03 <- origin_contr_traces02 %>% 
+                        
+                        # Add +1 height info for (a, b=a+1) hetzyg
+                        left_join(origin_contr_traces00 %>% 
+                                    mutate(Allele_minus1 = as.character(as.numeric(Allele)-1)) %>% 
+                                    select(contr, Allele_minus1, Height, Marker) %>% 
+                                    rename(Height_plus1 = Height),
+                                  by=join_by("contr"=="contr", "Marker"=="Marker", "Allele"=="Allele_minus1")) %>% 
+                        mutate(Height_plus1 = ifelse(is.na(Height_plus1), 0, Height_plus1)) %>% 
+                        
                         filter(!is.na(Allele1)) %>% 
                         
                         #Add how many unique peaks there are for figuring out which setting is homoz, hetz1dif, hetzno1dif
@@ -848,7 +856,9 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                         mutate(
                           S2 = case_when(
                             n_unique_alleles == 2 & Stutter2 == 1 ~ Height - S1,
-                            n_unique_alleles == 3 & Stutter2 == 1 ~ round(p23 * Height),
+                            n_unique_alleles == 3 & Stutter2 == 1 ~ ifelse(Height==0 ,#| Height < round(p23 * Height_plus1),
+                                                                           0,
+                                                                           round(p23 * Height_plus1)), 
                             n_unique_alleles == 4 & Stutter2 == 1 ~ Height,
                             TRUE ~ 0
                           )
@@ -896,7 +906,14 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                         filter(t != 0)
                       
                       if(nrow(test) != 0){
-                        warning("Error: selecting 4 components didn't go correctly!!!!")
+                        warning(paste0("Error: selecting 4 components didn't go correctly! Rownr: ", row))
+                        break
+                      }
+                      
+                      if(origin_contr_traces03 %>%
+                         filter(A1 < 0) %>%
+                         nrow() != 0){
+                        warning(paste0("Error: A1/S2 split didn't go correctly! Rownr: ", row))
                         break
                       }
                       
@@ -1043,7 +1060,7 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                                                             str_split_i(settings2$trace, "-", 3),
                                                             gsub("GF", "", str_split_i(settings2$trace, "-", 4)),
                                                             settings2$total_rfu
-                                                            ), collapse = "-")) %>% 
+                        ), collapse = "-")) %>% 
                         arrange(Marker)
                       
                       
@@ -1057,7 +1074,10 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                         real = unique(real_subset2$SampleName),
                         unmod = unique(target_nomod2$SampleName),
                         mod = unique(data_complete04$SampleName),
-                        NOC = NOC_mix
+                        NOC = NOC_mix,
+                        t = origin_contr_traces03 %>%
+                          filter(A1 < 0) %>%
+                          nrow()
                       )
                       #print(round(row/nrow(mixtures01)*100, 2))
                     }
@@ -1073,7 +1093,46 @@ openxlsx::write.xlsx(log_file,
                      paste0(output_folder, "logfile.xlsx"))
 
 
-
+# delete this part later
+# dat <- data.frame()
+# for(mix in unique(mixtures01$SampleName)){
+#   row <- mixtures01 %>% filter(SampleName==mix)
+#   contrs0 <- c(row$contr1, row$contr2, row$contr3, row$contr4)
+#   contrs <- contrs0[!is.na(contrs0)]
+#   
+#   trt <- row$treattype2
+#   
+#   for(contrk in contrs){
+#     subsett <- provedit1p_noheights %>% 
+#       filter(contrk == contr,
+#              trt == treattype2)
+#     
+#     if(nrow(subsett)!=0){
+#     dat <- dat %>% 
+#       bind_rows(data.frame(
+#         samplename = row$SampleName,
+#         contrses = str_split_i(row$SampleName, "-", 3),
+#         contr = contrk,
+#         treat = trt,
+#         suitables = nrow(subsett)
+#       ))
+#     } else{
+#       subsett <- provedit1p_noheights %>% 
+#         filter(contrk == contr,
+#                treattype2 == "Untreated")
+#       
+#       dat <- dat %>% 
+#         bind_rows(data.frame(
+#           samplename = row$SampleName,
+#           contrses = str_split_i(row$SampleName, "-", 3),
+#           contr = contrk,
+#           treat = trt,
+#           suitables_untreat = nrow(subsett)
+#         ))
+#     }
+#     
+#   }
+# }
 
 
 

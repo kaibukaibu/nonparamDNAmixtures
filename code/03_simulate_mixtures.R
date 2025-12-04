@@ -9,7 +9,7 @@
 # In this code we shall generate 10 2-person mixtures for each combination of contributors in the "GTs_target" folder.
 # Let us assume we are only interested in untreated samples with 1p profile rfus being between 10000 and 100000.
 # Code is easily adjustable to also condition on target mixture proportions
-# One could also adjust other parameters, fx if you want 1000 mixtures of the same pair of contributors
+# One could also adjust other parameters, for example if you want 1000 mixtures of the same pair of contributors
 
 
 
