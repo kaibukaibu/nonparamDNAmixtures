@@ -222,10 +222,10 @@ mixtures01 <- mixtures00 %>%
          contr3_mod = NA,
          contr4_mod = NA,
          
-         contr1_modT = NA,
-         contr2_modT = NA,
-         contr3_modT = NA,
-         contr4_modT = NA,
+         contr1_nomodQ = NA,
+         contr2_nomodQ = NA,
+         contr3_nomodQ = NA,
+         contr4_nomodQ = NA,
          
          contr1_nomod = NA,
          contr2_nomod = NA,
