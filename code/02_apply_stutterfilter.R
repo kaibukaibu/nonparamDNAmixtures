@@ -9,10 +9,10 @@
 library(tidyverse)
 library(openxlsx)
 
-setwd("..") #Project location
+#setwd("..") #Project location
 source("code/helping_functions.R") # Some functions to help
 genotypes_folder <- "data/data_provedit_cleaned/genotypes/" #Folder for genotypes, must have "/" at the end. Only used for making sure which markers to look at.
-results_folder <- "data/data_replicated_2_3/" #Where to save the results, must have "/" at the end
+results_folder <- "data/data_replicated/" #Where to save the results, must have "/" at the end
 
 
 
@@ -155,8 +155,7 @@ stopCluster(cl)
 
 # Read in key file
 keys <- read.csv(paste0(results_folder, "logfile.csv")) %>% 
-  mutate(joinby = gsub(";", "-", real)) %>% 
-  rename(nomod = unmod)
+  mutate(joinby = gsub(";", "-", real))
 
 
 
@@ -205,8 +204,7 @@ traces <- all_files_afterfilter %>%
 
 
 traces2 <- traces %>% 
-  rename(nomodQ = unmodQ) %>% 
-  pivot_longer(cols=real:modQ) %>% 
+  pivot_longer(cols=real:mod) %>% 
   select(-trace) %>% 
   mutate(trace = paste0(NOC, "p_", name, "_sFRiman/", value, ".csv")) %>% 
   select(trace, NOC, ends_with(as.character(1:4))) %>% 
@@ -263,21 +261,10 @@ for(NOCp in unique(traces2$NOC)){
     arrange(trace, reference) %>% 
     unique()
   
-  NOCdata_modQ <- traces2 %>% 
-    filter(NOC == NOCp) %>% 
-    rowwise() %>%
-    filter(str_detect(trace, "_modQ")) %>% 
-    mutate(trace = str_split_i(trace, "/", 2)) %>% 
-    ungroup() %>% 
-    select(trace, reference) %>% 
-    arrange(trace, reference) %>% 
-    unique()
-  
   # Save to mod and nomod and real
   write.xlsx(NOCdata_mod, paste0(results_folder, NOCp, "p_mod_sFRiman/traces_references.xlsx"))
   write.xlsx(NOCdata_nomod, paste0(results_folder, NOCp, "p_nomod_sFRiman/traces_references.xlsx"))
   write.xlsx(NOCdata_real, paste0(results_folder, NOCp, "p_real_sFRiman/traces_references.xlsx"))
-  write.xlsx(NOCdata_modQ, paste0(results_folder, NOCp, "p_modQ_sFRiman/traces_references.xlsx"))
   write.xlsx(NOCdata_nomodQ, paste0(results_folder, NOCp, "p_nomodQ_sFRiman/traces_references.xlsx"))
 }
 
