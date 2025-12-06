@@ -926,7 +926,7 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                                                  unique(target_nomod$Marker))
                       
                       if(length(missing_markers)!=0){
-                        target_nomod2 <- target_nomod %>%
+                        target_nomod2Q <- target_nomod %>%
                           rbind(data.frame(
                             Marker = missing_markers,
                             Allele = "",
@@ -937,7 +937,7 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                           arrange(Marker)
                         print("Missing markers")
                       } else{
-                        target_nomod2 <- target_nomod %>%
+                        target_nomod2Q <- target_nomod %>%
                           long_to_wide(samplelabel = paste0(c(contrs, origins, templates, rfus
                           ), collapse = "-")) %>% 
                           arrange(Marker)
@@ -946,8 +946,8 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                       
                       
                       # Save results
-                      write.csv(target_nomod2,
-                                paste0(output_folder, NOC_mix, "p_nomodQ/", unique(target_nomod2$SampleName), ".csv"), row.names=F, quote = F)
+                      write.csv(target_nomod2Q,
+                                paste0(output_folder, NOC_mix, "p_nomodQ/", unique(target_nomod2Q$SampleName), ".csv"), row.names=F, quote = F)
                       
                       
                       
@@ -1353,7 +1353,7 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                       data.frame(
                         real = unique(real_subset2$SampleName),
                         nomod = unique(target_nomod2$SampleName),
-                        nomodQ = unique(target_nomod2$SampleName),
+                        nomodQ = unique(target_nomod2Q$SampleName),
                         mod = unique(data_complete04$SampleName),
                         NOC = NOC_mix
                       )
