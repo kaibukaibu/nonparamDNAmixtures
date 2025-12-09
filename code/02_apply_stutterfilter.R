@@ -194,12 +194,7 @@ traces <- all_files_afterfilter %>%
   full_join(keys,
             by=join_by("joinby", "NOC")) %>% 
   select(-real) %>% 
-  rename(real=joinby) %>% 
-  
-  group_by(nomod) %>% 
-  mutate(n_nomod = 1:n(),
-         n_nomod_total = n()) %>% 
-  ungroup()
+  rename(real=joinby)
 
 
 
@@ -221,20 +216,10 @@ traces2 <- traces %>%
 
 # Save combinations in each file
 for(NOCp in unique(traces2$NOC)){
-  NOCdata_nomod <- traces2 %>% 
-    filter(NOC == NOCp) %>% 
-    rowwise() %>%
-    filter(str_detect(trace, "nomod") & (!str_detect(trace, "nomodQ"))) %>% 
-    mutate(trace = str_split_i(trace, "/", 2)) %>% 
-    ungroup() %>% 
-    select(trace, reference) %>% 
-    arrange(trace, reference) %>% 
-    unique()
-  
   NOCdata_mod <- traces2 %>% 
     filter(NOC == NOCp) %>% 
     rowwise() %>%
-    filter(str_detect(trace, "_mod") & (!str_detect(trace, "_modQ"))) %>% 
+    filter(str_detect(trace, "_mod")) %>% 
     mutate(trace = str_split_i(trace, "/", 2)) %>% 
     ungroup() %>% 
     select(trace, reference) %>% 
@@ -251,21 +236,9 @@ for(NOCp in unique(traces2$NOC)){
     arrange(trace, reference) %>% 
     unique()
   
-  NOCdata_nomodQ <- traces2 %>% 
-    filter(NOC == NOCp) %>% 
-    rowwise() %>%
-    filter(str_detect(trace, "nomodQ")) %>% 
-    mutate(trace = str_split_i(trace, "/", 2)) %>% 
-    ungroup() %>% 
-    select(trace, reference) %>% 
-    arrange(trace, reference) %>% 
-    unique()
-  
   # Save to mod and nomod and real
   write.xlsx(NOCdata_mod, paste0(results_folder, NOCp, "p_mod_sFRiman/traces_references.xlsx"))
-  write.xlsx(NOCdata_nomod, paste0(results_folder, NOCp, "p_nomod_sFRiman/traces_references.xlsx"))
   write.xlsx(NOCdata_real, paste0(results_folder, NOCp, "p_real_sFRiman/traces_references.xlsx"))
-  write.xlsx(NOCdata_nomodQ, paste0(results_folder, NOCp, "p_nomodQ_sFRiman/traces_references.xlsx"))
 }
 
 
