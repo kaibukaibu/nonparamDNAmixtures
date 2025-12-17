@@ -778,21 +778,6 @@ log_file <- foreach(row = 1:nrow(mixtures01),
   
   # Update 14/12: add two noise sets -- one where we do not reorganize noise peaks and one where we do (to avoid them being overwritten by the allelic/stutter peak reshuffling)
   
-  data_complete01_noiseperson <- data_complete00 %>% 
-    
-    filter(contr == noisefromthis) %>% 
-    select(target, Marker, target_Allele, S1_new, S2_new, A1_new, A2_new) %>% 
-    
-    #Pivot to longer format
-    pivot_longer(cols=S1_new:A2_new) %>% 
-    
-    # Add up the peaks
-    group_by(Marker, target_Allele, target) %>% 
-    summarise(Height = sum(value)) %>% 
-    ungroup() %>% 
-    rename(Allele = target_Allele)
-  
-  
   noise2 <- noise %>% 
     select(contr, Allele, Marker, Height) %>% 
     left_join(target_contr_GTs01 %>% 
