@@ -222,7 +222,7 @@ mixtures01 <- mixtures00 %>%
          contr2_mod = NA,
          contr3_mod = NA,
          contr4_mod = NA
-         ) %>% 
+  ) %>% 
   unique()
 
 
@@ -332,7 +332,7 @@ for(row in 1:nrow(mixtures01)){
     head(1) %>% 
     pull(trace)
   
-  trace3_sametreat <- ifelse(length(trace3_sametreat)==0, NA, trace3_sametreat)
+  trace3_sametreat <- ifelse(length(trace3_sametreat)==0, NA, trace3_sametreat) #if still missing then because NOC=2
   
   trace4_sametreat <- provedit1p_noheights %>% 
     filter(treattype2 == mixtures01[row,]$treattype2,
@@ -346,7 +346,7 @@ for(row in 1:nrow(mixtures01)){
     head(1) %>% 
     pull(trace)
   
-  trace4_sametreat <- ifelse(length(trace4_sametreat)==0, NA, trace4_sametreat)
+  trace4_sametreat <- ifelse(length(trace4_sametreat)==0, NA, trace4_sametreat) #if still missing then because NOC=2 or 3
   
   
   mixtures01[row, "contr1_mod"] <- trace1_sametreat
@@ -377,7 +377,7 @@ registerDoParallel(cl)
 log_file <- foreach(row = 1:nrow(mixtures01),
                     .combine=rbind,
                     .packages = c("tidyverse")) %dopar% {
-                      # for(i in 1:nrow(mixtures01)){
+                      # for(row in 1:nrow(mixtures01)){ #this loop is better for debugging
                       rowdata <- mixtures01[row,]
                       
                       NOC_mix <- rowdata$NOC
@@ -757,10 +757,111 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                         rename(Allele = target_Allele)
                       
                       
+                      # data_complete_listnoise <- data_complete00 %>% 
+                      #   filter(contr==noisefromthis) %>% 
+                      #   select(target, Marker, target_Allele, S1_new, S2_new, A1_new, A2_new) %>% 
+                      #   
+                      #   #Pivot to longer format
+                      #   pivot_longer(cols=S1_new:A2_new) %>% 
+                      #   
+                      #   # Add up the peaks
+                      #   group_by(Marker, target_Allele) %>% 
+                      #   summarise(Height = sum(value)) %>% 
+                      #   ungroup() %>% 
+                      #   rename(Allele = target_Allele) %>% 
+                      #   mutate(t=paste0(Marker, "__", Allele)) %>% 
+                      #   select(t) %>% unique()
+                      
+
+                      
+                      
+                      # Noise update 18/12
+                      
+                      # First we do a full join of origin and target contributor's alleles and -1 stutters to see which peaks should be moved around (and which not because they are included in both origin and target's gts)
+                      GT_target_noiseperson <- target_contr_GTs01 %>% 
+                        filter(SampleName==settings[settings$origin==noisefromthis, "target"]) %>%
+                        select(Marker, Allele) %>%
+                        unique() %>%
+                        mutate(target_indic = 1)
+                      
+                      GT_origin_noiseperson <- origin_contr_GTs01 %>% 
+                        filter(SampleName==noisefromthis) %>%
+                        select(Marker, Allele) %>%
+                        unique() %>%
+                        mutate(origin_indic = 1)
+                      
+                      GT_fulljoined <- GT_origin_noiseperson %>% 
+                        full_join(GT_target_noiseperson,
+                                  by=join_by(Marker, Allele)) %>% 
+                        arrange(Marker, Allele)
+                      
+                      GT_outerjoin <- GT_fulljoined %>% 
+                        filter(!(origin_indic==1 & target_indic==1 & !is.na(origin_indic) & !is.na(target_indic))) %>% 
+                        
+                        # Add peak heights to origin
+                        left_join(origin_contr_traces00 %>% 
+                                    filter(contr==noisefromthis) %>% 
+                                    select(Allele, Marker, Height),
+                                  by=join_by(Marker, Allele)) %>% 
+                        
+                        #We are interested in the noise peaks that we shuffle around (target_indic=1)
+                        
+                        # Turn height to NA if it's allelic/stut for the origin
+                        mutate(Height = ifelse(!is.na(origin_indic) & origin_indic==1, NA, Height)) %>% 
+                        mutate(Height = ifelse(!is.na(target_indic) & target_indic==1 & is.na(Height), 0, Height)) %>% 
+                        
+                        # Now we have all noise alleles that need to be shuffled around, sample from there for each origin location
+                        group_by(Marker) %>% 
+                        mutate(sample_space = lapply(list(Height), function(x) x[!is.na(x)])) %>% 
+                        ungroup()
+                      
+                      #Choose the origin peak locations and sample noise heights for each
+                      shuffled_noise <- GT_outerjoin %>% 
+                        filter(!is.na(origin_indic) & origin_indic==1) %>% 
+                        rowwise() %>% 
+                        
+                        mutate(
+                          Height_sampled = if (length(sample_space) == 0) {
+                            "0"
+                          } else {
+                            sample(as.array(as.character(sample_space)), 1) #this no work
+                          }
+                        ) %>% 
+                        
+                        select(Marker, Allele, Height_sampled) %>% 
+                        rename(Height=Height_sampled) %>% 
+                        mutate(Height = as.numeric(Height))
+                      
+                      
+                      
+                      #Other types of noise that are not affected by the reshuffling
+                      noise_other <- noise %>% 
+                        select(contr, Allele, Marker, Height) %>%
+                        left_join(target_contr_GTs01 %>%
+                                    filter(SampleName==settings[settings$origin==noisefromthis, "target"]) %>%
+                                    select(Marker, Allele) %>%
+                                    unique() %>%
+                                    mutate(contributors = 1),
+                                  by=join_by("Allele", "Marker")) %>%
+                        filter(is.na(contributors)) %>% 
+                        select(Marker, Allele, Height)
+                      
+                      
+                      test_noisematch <- shuffled_noise %>% 
+                        inner_join(noise_other,
+                                   by=join_by(Marker, Allele))
+                      
+                      if(nrow(test_noisematch)!=0){
+                        warning(paste0("Error: noise shuffling did not go correctly! Rownr: ", row))
+                        break
+                      }
+                      
+                      
+                      
                       # Add noise
                       data_complete02 <- data_complete01 %>% 
-                        rbind(noise %>% 
-                                select(Marker, Allele, Height)) %>% 
+                        rbind(shuffled_noise) %>% 
+                        rbind(noise_other) %>% 
                         
                         #Add up the peaks
                         group_by(Marker, Allele) %>% 
