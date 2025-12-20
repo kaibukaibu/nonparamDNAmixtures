@@ -120,7 +120,7 @@ GTs01 <- rbind(
 mixtures00 <- read.csv2(input_provedit, sep = ",") %>% 
   
   #Add NOC and take only mixtures
-  mutate(NOC = str_count(SampleName, ";") + 1) %>% #produces NAs but that's fine
+  mutate(NOC = str_count(SampleName, ";") + 1) %>% 
   filter(NOC != 1) %>% 
   
   #Add contributors
@@ -757,26 +757,7 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                         rename(Allele = target_Allele)
                       
                       
-                      # data_complete_listnoise <- data_complete00 %>% 
-                      #   filter(contr==noisefromthis) %>% 
-                      #   select(target, Marker, target_Allele, S1_new, S2_new, A1_new, A2_new) %>% 
-                      #   
-                      #   #Pivot to longer format
-                      #   pivot_longer(cols=S1_new:A2_new) %>% 
-                      #   
-                      #   # Add up the peaks
-                      #   group_by(Marker, target_Allele) %>% 
-                      #   summarise(Height = sum(value)) %>% 
-                      #   ungroup() %>% 
-                      #   rename(Allele = target_Allele) %>% 
-                      #   mutate(t=paste0(Marker, "__", Allele)) %>% 
-                      #   select(t) %>% unique()
-                      
-
-                      
-                      
-                      # Noise update 18/12
-                      
+                      # Noise handling
                       # First we do a full join of origin and target contributor's alleles and -1 stutters to see which peaks should be moved around (and which not because they are included in both origin and target's gts)
                       GT_target_noiseperson <- target_contr_GTs01 %>% 
                         filter(SampleName==settings[settings$origin==noisefromthis, "target"]) %>%
