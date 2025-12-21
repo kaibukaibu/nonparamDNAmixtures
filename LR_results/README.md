@@ -1,4 +1,8 @@
-The LR calculation results file in this folder contains of LR calculations of 3084 mixture-PoI combinations. The variables in the dataset represent the following:
+## Likelihood ratio results
+
+The LR calculation results file in this folder contains of LR calculations of 3084 mixture-PoI combinations. Note that in this dataset, a few traces that are as duplicates, as they have two corresponding PROVEDIt mixtures. This is due to limitations in the sampling space for the 1p trace profiles. For example, for PROVEDIt mixtures "A02-RD14-0003-44-45-1-1-M4I35-0062GF-QLAND-0115sechid.csv" and "F01-RD14-0003-44-45-1-1-M4I22-0062GF-Q20-0615sechid.csv", there is only one simulated trace profile, because of these two mixture profiles being very similar (total contribution rfus 10059 and 10031; same contributors, treatment, mixing proportions, and template mass). Our simulation algorithm chose the exact same 1p profiles for both of these mixtures due to the target rfus being very similar.
+
+The variables in the dataset represent the following:
 
 - trace: name of mixture (either replicated or from PROVEDIt); for replicated mixtures the trace name includes the indicators for two contributors, indicators for used 1p origin profiles (contr, dilution number, treatment), template masses (delimiter removed, i.e. 0125 indicates 0.125 ng) and contribution rfus -- all in the same order as the contributors
 - poi: PoI
