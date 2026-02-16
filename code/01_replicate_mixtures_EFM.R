@@ -1,9 +1,18 @@
+# Code for generating replicate mixtures with EFM in paper "Non-parametric simulation of DNA mixture profiles from one-person trace profiles"
+# Author: Kai Budrikas (kaib@itu.dk)
+
+
+
+
+# -----------------------------------------------------------------------------------------------
+
+# Load packages and set data locations
+
 library(tidyverse)
 library(euroformix)
 library(rlist)
 source("code/helping_functions.R")
 set.seed(66)
-
 #setwd("..")
 
 
@@ -11,6 +20,11 @@ input_parameters_fileloc <- "LR_results/replicates_unfiltered001riman.csv"
 output <- "data/data_replicated/"
 pop <- "data/NIST1036_Cauc.csv"
 input_1p_fileloc <- "data/data_provedit_cleaned/genotypes.csv"
+
+
+
+
+# -----------------------------------------------------------------------------------------------
 
 
 
@@ -141,7 +155,7 @@ for(i in 1:nrow(input_parameters)){
     #kit = "GlobalFiler"
   )
   
-  #plotEPG2(sampled$samples,kit = "GlobalFiler",AT=0) #visualize samples
+  #plotEPG2(sampled$samples,kit = "GlobalFiler",AT=0) # to visualize
   
   mixture <- map_df(names(sampled$samples), function(samp) {
     map_df(names(sampled$samples[[samp]]), function(loc) {
