@@ -139,20 +139,19 @@ for(i in 1:nrow(input_parameters)){
   
   # Sample one mixture per PROVEDIt mixture
   sampled <- genDataset(
-    nC = tracerow$NoC,
-    popFreq = popfreqs2,
-    mu = tracerow$Hu_expectedPeakHeight,
-    sigma = tracerow$Hu_peakHeightVariance,
-    threshT = 0,
-    refData = refdat,
-    mx = props,
-    nrep = 1,
-    stutt = 0,
-    stuttFW = 0,
-    prC = 0.05, #default of DNAStatistX
-    lambda = 0.01,
-    beta = tracerow$Hu_degradationSlope#, 
-    #kit = "GlobalFiler"
+    nC = tracerow$NoC, #true NOC
+    popFreq = popfreqs2, #our population frequencies
+    mu = tracerow$Hu_expectedPeakHeight, #mu from fitted DNAStatistX model
+    sigma = tracerow$Hu_peakHeightVariance, #sigma from fitted DNAStatistX model
+    threshT = 50, #Required allele peak height in mixture
+    refData = refdat, #contributor genotypes
+    mx = props, #mixing proportions from PROVEDIT file names
+    nrep = 1, #1 replicate
+    stutt = 0, #-1 stutter proportion
+    stuttFW = 0, #+1 stutter proportion
+    prC = 0.05, #numerical dropin probability, this I think is the default of DNAStatistX
+    lambda = 0.01, #The rate parameter in the exponential distribution for simulating drop-in peak heights, this I think is also a default in DNAStatistX
+    beta = tracerow$Hu_degradationSlope # Degradation slope parameter from fitted DNAStatistX model
   )
   
   #plotEPG2(sampled$samples,kit = "GlobalFiler",AT=0) # to visualize
