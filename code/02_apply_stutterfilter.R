@@ -26,7 +26,8 @@ results_folder <- "data/data_replicated/" #Where to save the results, must have 
 input_folders <- list.files(results_folder,
                             full.names = T)[!str_detect(list.files(results_folder), "sFRiman") &
                                               !str_detect(list.files(results_folder), "log") &
-                                              !str_detect(list.files(results_folder), "realmix")
+                                              !str_detect(list.files(results_folder), "realmix") &
+                                              !str_detect(list.files(results_folder), "EFM")
                                             ]
 for(file in input_folders){
   if (dir.exists(paste0(file, "_sFRiman"))) {
@@ -244,7 +245,7 @@ for(NOCp in unique(traces2$NOC)){
   # Save to mod and real and EFM
   write.xlsx(NOCdata_mod, paste0(results_folder, NOCp, "p_mod_sFRiman/traces_references.xlsx"))
   write.xlsx(NOCdata_real, paste0(results_folder, NOCp, "p_real_sFRiman/traces_references.xlsx"))
-  write.xlsx(NOCdata_EFM, paste0(results_folder, NOCp, "p_EFM_sFRiman/traces_references.xlsx"))
+  write.xlsx(NOCdata_EFM, paste0(results_folder, NOCp, "p_EFM/traces_references.xlsx"))
 }
 
 

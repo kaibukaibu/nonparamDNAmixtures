@@ -8,12 +8,14 @@
 
 # Load packages and set data locations
 
+#setwd("..")
 library(tidyverse)
+#remotes::install_github("oyvble/euroformix")
 library(euroformix)
 library(rlist)
 source("code/helping_functions.R")
 set.seed(66)
-#setwd("..")
+
 
 
 input_parameters_fileloc <- "LR_results/replicates_unfiltered001riman.csv"
@@ -29,9 +31,10 @@ input_1p_fileloc <- "data/data_provedit_cleaned/genotypes.csv"
 
 
 
-# make results subfolders
+# make results subfolders (and delete old results)
 for(NOC in 2:4){
   for(type in c("EFM")){
+    if(dir.exists(paste0(output, NOC, "p_", type))) unlink(paste0(output, NOC, "p_", type), recursive = TRUE, force = T)
     dir.create(paste0(output, NOC, "p_", type),
                recursive = F, showWarnings = T)
   }
@@ -54,7 +57,8 @@ input_1p <- read.csv(input_1p_fileloc) %>%
   rename(Allele = value) %>%
   select(!name) %>%
   mutate(Sample.Name = gsub("c", "", Sample.Name),
-         Allele = as.character(as.numeric(Allele)))
+         Allele = as.character(as.numeric(Allele)),
+         Marker = toupper(Marker)) #capitalize all the markers because otherwise EFM won't work
 
 
 
@@ -64,12 +68,15 @@ popfreqs <- read.csv(pop) %>%
   rename(freq = value,
          Marker = name) %>%
   filter(!is.na(freq)) %>% 
-  filter(Marker %in% unique(input_1p$Marker))
+  filter(toupper(Marker) %in% unique(input_1p$Marker)) %>% 
+  mutate(Marker = toupper(Marker))
 
 popfreqs2 <- lapply(split(popfreqs, popfreqs$Marker), function(x) {
   freqs <- x$freq
   names(freqs) <- x$Allele
   freqs })
+
+
 
 
 
@@ -143,15 +150,38 @@ for(i in 1:nrow(input_parameters)){
     popFreq = popfreqs2, #our population frequencies
     mu = tracerow$Hu_expectedPeakHeight, #mu from fitted DNAStatistX model
     sigma = tracerow$Hu_peakHeightVariance, #sigma from fitted DNAStatistX model
-    threshT = 50, #Required allele peak height in mixture
+    threshT = c(
+      "D3S1358"=35,
+      "vWA"=35,
+      "D16S539"=35,
+      "CSF1PO"=35, 
+      "TPOX"=35, 
+      "D8S1179"=65, 
+      "D21S11"=65, 
+      "D18S51"=65, 
+      "D2S441"=45, 
+      "D19S433"=45, 
+      "TH01"=45, 
+      "FGA"=45, 
+      "D22S1045"=50, 
+      "D5S818"=50, 
+      "D13S317"=50, 
+      "D7S820"=50, 
+      "SE33"=50, 
+      "D10S1248"=60, 
+      "D1S1656"=60,
+      "D12S391"=60,
+      "D2S1338"=60
+    ), #Required allele peak height in mixture
     refData = refdat, #contributor genotypes
     mx = props, #mixing proportions from PROVEDIT file names
     nrep = 1, #1 replicate
     stutt = 0, #-1 stutter proportion
     stuttFW = 0, #+1 stutter proportion
-    prC = 0.05, #numerical dropin probability, this I think is the default of DNAStatistX
+    prC = 0.05, #numerical dropin probability, default in DNAStatistX
     lambda = 0.01, #The rate parameter in the exponential distribution for simulating drop-in peak heights, this I think is also a default in DNAStatistX
-    beta = tracerow$Hu_degradationSlope # Degradation slope parameter from fitted DNAStatistX model
+    beta = tracerow$Hu_degradationSlope, # Degradation slope parameter from fitted DNAStatistX model
+    kit = "GlobalFiler"
   )
   
   #plotEPG2(sampled$samples,kit = "GlobalFiler",AT=0) # to visualize
@@ -167,6 +197,23 @@ for(i in 1:nrow(input_parameters)){
     })
   }) %>% 
     long_to_wide(samplelabel = paste0("EFM-", gsub(".csv", "", tracerow$trace)))
+  
+  if(nrow(mixture)!=21){ #then we have missing markers
+    missingmarkers00 <- unique(input_1p$Marker)
+    missingmarkers01 <- missingmarkers00[!missingmarkers00 %in% unique(mixture$Marker)]
+    for(mark in missingmarkers01){
+      mixture <- mixture %>% 
+        bind_rows(data.frame(
+          SampleName = unique(mixture$SampleName),
+          Marker = mark
+        ))
+    }
+  }
+  
+  mixture <- mixture %>% 
+    replace(., is.na(.), "") %>% 
+    arrange(Marker) %>% 
+    mutate(Marker = ifelse(Marker=="VWA", "vWA", Marker))
   
   write.csv(mixture, paste0(output, tracerow$NoC, "p_", type, "/", unique(mixture$SampleName), ".csv"),
             row.names=F, quote = F)
