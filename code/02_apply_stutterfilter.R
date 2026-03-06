@@ -9,16 +9,49 @@
 library(tidyverse)
 library(openxlsx)
 library(doParallel)
+library(foreach)
 
 #setwd("..") #Project location
 source("code/helping_functions.R") # Some functions to help
 genotypes_folder <- "data/data_provedit_cleaned/genotypes/" #Folder for genotypes, must have "/" at the end. Only used for making sure which markers to look at.
 results_folder <- "data/data_replicated/" #Where to save the results, must have "/" at the end (change this to "data/data_replicated_noisy/" if you wish to filter for noisy data)
+traces_1p <- "data/data_provedit_cleaned/traces.csv"
 
 
 
 # -----------------------------------------------------------------------------------------------
 
+# Add 1p traces to the results folder
+traces_1p_00 <- read.csv(traces_1p) %>% 
+  mutate(SampleName = gsub("_", "-", SampleName)) %>% 
+  filter(!str_detect(SampleName, ";"))
+marks <- unique(traces_1p_00$Marker)
+
+if (dir.exists(paste0(results_folder, "1p_real"))) {
+  unlink(paste0(results_folder, "1p_real"), recursive = TRUE, force = T)  # Deletes the folder and all contents
+}
+dir.create(paste0(results_folder, "1p_real"))
+
+foreach(trace = unique(traces_1p_00$SampleName)) %do% {
+  tracee <- traces_1p_00 %>% 
+    filter(SampleName==trace) %>% 
+    long_to_wide(samplelabel = trace)
+  
+  if(nrow(tracee)!=21){
+    missing_markers <- setdiff(marks, unique(tracee$Marker))
+    
+    tracee <- tracee %>% 
+      bind_rows(
+        data.frame(SampleName = unique(tracee$SampleName),
+                   Marker = missing_markers)
+      ) %>%
+      replace(., is.na(.), "") %>% 
+      arrange(Marker)
+  }
+  
+  write.csv(tracee, paste0(results_folder, "1p_real/", unique(tracee$SampleName), ".csv"),
+            row.names=F, quote = F)
+}
 
 
 
@@ -28,7 +61,7 @@ input_folders <- list.files(results_folder,
                                               !str_detect(list.files(results_folder), "log") &
                                               !str_detect(list.files(results_folder), "realmix") &
                                               !str_detect(list.files(results_folder), "EFM")
-                                            ]
+                            ]
 for(file in input_folders){
   if (dir.exists(paste0(file, "_sFRiman"))) {
     unlink(paste0(file, "_sFRiman"), recursive = TRUE, force = T)  # Deletes the folder and all contents
@@ -97,6 +130,7 @@ all_markers <- read.csv(paste0(genotypes_folder, "c1.csv")) %>% #load all necess
 
 loop <- foreach(trace=all_files,
                 .packages = c("tidyverse")) %dopar% {
+                  # for(trace in all_files){
                   tracedata <- read.csv(trace)
                   trace_long <- wide_to_long(tracedata) %>% 
                     mutate(Allele = as.numeric(Allele),
@@ -125,7 +159,7 @@ loop <- foreach(trace=all_files,
                   missing_markers <- setdiff(all_markers,
                                              unique(trace_long01$Marker))
                   
-                  if(length(missing_markers)!=0){
+                  if(length(missing_markers) %in% 1:20){
                     trace_wide <- trace_long01 %>%
                       rbind(data.frame(
                         SampleName = unique(trace_long01$SampleName),
@@ -137,9 +171,14 @@ loop <- foreach(trace=all_files,
                       arrange(Marker)
                     
                     print(paste0("Missing markers: ", trace))
-                  } else{
+                  } else if(length(missing_markers)==0) {
                     trace_wide <- long_to_wide(trace_long01, unique(trace_long01$SampleName)) %>% 
                       arrange(Marker)
+                  } else if(length(missing_markers)==21) {
+                    trace_wide <- tracedata %>% 
+                      select(SampleName, Marker, Allele1, Height1) %>% 
+                      mutate(Allele1 = "",
+                             Height1 = "")
                   }
                   
                   to_location <- paste0(str_split(trace, "/")[[1]][1], "/",
@@ -164,8 +203,8 @@ keys <- read.csv(paste0(results_folder, "logfile.csv")) %>%
 
 # Make traces - references log file (writing up all calculations to go through in DNAStatistX)
 input_folders_afterfilter <- list.files(results_folder, full.names = T)[str_detect(list.files(results_folder), "sFRiman") &
-                                                          str_detect(list.files(results_folder), "real") &
-                                                          !str_detect(list.files(results_folder), "batches")]
+                                                                          str_detect(list.files(results_folder), "real") &
+                                                                          !str_detect(list.files(results_folder), "batches")]
 all_files_afterfilter <- lapply(input_folders_afterfilter, function(folder) list.files(folder, full.names=T)) %>% unlist()
 traces <- all_files_afterfilter %>% 
   as.data.frame() %>% 
@@ -174,14 +213,17 @@ traces <- all_files_afterfilter %>%
   rowwise() %>% 
   mutate(NOC = as.numeric(str_split(str_split_i(trace, "/", 3), "p")[[1]][1]),
          
-         contr1 = ifelse(str_detect(trace, "real"),
-                         paste0("c",str_split(trace, "-")[[1]][4]),
-                         str_split(str_split(trace, "-")[[1]][1], "/")[[1]][2]),
-         contr2 = ifelse(str_detect(trace, "real"),
-                         paste0("c",str_split(trace, "-")[[1]][5]),
-                         str_split(trace, "-")[[1]][2]),
+         contr1 = ifelse(NOC==1,
+                         paste0("c", as.numeric(substr(str_split(trace, "-")[[1]][4], 1,2))),
+                         ifelse(str_detect(trace, "real"),
+                                paste0("c",str_split(trace, "-")[[1]][4]),
+                                str_split(str_split(trace, "-")[[1]][1], "/")[[1]][2])),
+         contr2 = ifelse(NOC==1, NA,
+                         ifelse(str_detect(trace, "real"),
+                                paste0("c",str_split(trace, "-")[[1]][5]),
+                                str_split(trace, "-")[[1]][2])),
          
-         contr3 = ifelse(NOC==2, NA,
+         contr3 = ifelse(NOC %in% 1:2, NA,
                          ifelse(str_detect(trace, "real"),
                                 paste0("c",str_split(trace, "-")[[1]][6]),
                                 str_split(trace, "-")[[1]][3])),
@@ -202,6 +244,7 @@ traces <- all_files_afterfilter %>%
 
 
 traces2 <- traces %>% 
+  #filter(NOC!=1) %>% 
   pivot_longer(cols=real:mod) %>% 
   select(-trace) %>% 
   mutate(trace = paste0(NOC, "p_", name, "_sFRiman/", value, ".csv")) %>% 
@@ -217,8 +260,8 @@ traces2 <- traces %>%
 
 
 
-# Save combinations in each file
-for(NOCp in unique(traces2$NOC)){
+# Save 2-4p combinations in each file
+for(NOCp in 2:4){
   NOCdata_mod <- traces2 %>% 
     filter(NOC == NOCp) %>% 
     rowwise() %>%
@@ -248,6 +291,19 @@ for(NOCp in unique(traces2$NOC)){
   write.xlsx(NOCdata_EFM, paste0(results_folder, NOCp, "p_EFM/traces_references.xlsx"))
 }
 
+
+# Save 1p traces too
+NOCdata_real <- traces2 %>% 
+  filter(NOC == 1) %>% 
+  rowwise() %>%
+  filter(str_detect(trace, "real")) %>% 
+  mutate(trace = str_split_i(trace, "/", 2)) %>% 
+  ungroup() %>% 
+  select(trace, reference) %>% 
+  arrange(trace, reference) %>% 
+  unique()
+
+write.xlsx(NOCdata_real, paste0(results_folder, 1, "p_real_sFRiman/traces_references.xlsx"))
 
 
 
