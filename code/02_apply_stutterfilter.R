@@ -159,6 +159,11 @@ loop <- foreach(trace=all_files,
                   missing_markers <- setdiff(all_markers,
                                              unique(trace_long01$Marker))
                   
+                  to_location <- paste0(str_split(trace, "/")[[1]][1], "/",
+                                        str_split(trace, "/")[[1]][2], "/",
+                                        str_split(trace, "/")[[1]][3],
+                                        "_sFRiman")
+                  
                   if(length(missing_markers) %in% 1:20){
                     trace_wide <- trace_long01 %>%
                       rbind(data.frame(
@@ -171,22 +176,18 @@ loop <- foreach(trace=all_files,
                       arrange(Marker)
                     
                     print(paste0("Missing markers: ", trace))
+                    
+                    write.csv(trace_wide, paste0(to_location, "/", unique(trace_wide$SampleName), ".csv"),
+                              row.names=F, quote = F)
                   } else if(length(missing_markers)==0) {
                     trace_wide <- long_to_wide(trace_long01, unique(trace_long01$SampleName)) %>% 
                       arrange(Marker)
+                    
+                    write.csv(trace_wide, paste0(to_location, "/", unique(trace_wide$SampleName), ".csv"),
+                              row.names=F, quote = F)
                   } else if(length(missing_markers)==21) {
-                    trace_wide <- tracedata %>% 
-                      select(SampleName, Marker, Allele1, Height1) %>% 
-                      mutate(Allele1 = "",
-                             Height1 = "")
+                    # then do nothing if all has dropped out
                   }
-                  
-                  to_location <- paste0(str_split(trace, "/")[[1]][1], "/",
-                                        str_split(trace, "/")[[1]][2], "/",
-                                        str_split(trace, "/")[[1]][3],
-                                        "_sFRiman")
-                  write.csv(trace_wide, paste0(to_location, "/", unique(trace_wide$SampleName), ".csv"),
-                            row.names=F, quote = F)
                 }
 stopCluster(cl)
 
