@@ -29,8 +29,9 @@ set.seed(66)
 # make results subfolders
 if (dir.exists(output_folder)) {
   unlink(output_folder, recursive = TRUE, force = T)  # Deletes the folder and all contents
-  dir.create(output_folder)
 }
+dir.create(output_folder)
+dir.create(paste0(output_folder, "adjusted_prepasting")) #make a folder for the mixture profiles before pasting the contributions together for later possible analysis
 for(NOC in 2:4){
   for(type in c("real", "mod")){
     dir.create(paste0(output_folder, NOC, "p_", type),
@@ -756,6 +757,13 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                         ungroup() %>% 
                         rename(Allele = target_Allele)
                       
+                      intermed <- data_complete00 %>%  #save this intermediate step for possible future examination
+                        select(target, Marker, target_Allele, S1_new, S2_new, A1_new, A2_new) %>% 
+                        
+                        #Pivot to longer format
+                        pivot_longer(cols=S1_new:A2_new) %>% 
+                        filter(value!=0)
+                      
                       
                       # Noise handling
                       # First we do a full join of origin and target contributor's alleles and -1 stutters to see which peaks should be moved around (and which not because they are included in both origin and target's gts)
@@ -889,6 +897,8 @@ log_file <- foreach(row = 1:nrow(mixtures01),
                       # Save results
                       write.csv(data_complete04,
                                 paste0(output_folder, NOC_mix, "p_mod/", unique(data_complete04$SampleName), ".csv"), row.names=F, quote = F)
+                      write.csv(intermed,
+                                paste0(output_folder, "adjusted_prepasting/", unique(data_complete04$SampleName), ".csv"), row.names=F, quote = F)
                       
                       
                       
