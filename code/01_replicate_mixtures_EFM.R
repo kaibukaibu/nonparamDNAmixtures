@@ -149,7 +149,7 @@ for(i in 1:nrow(input_parameters)){
     nC = tracerow$NoC, #true NOC
     popFreq = popfreqs2, #our population frequencies
     mu = tracerow$Hu_expectedPeakHeight, #mu from fitted DNAStatistX model
-    sigma = tracerow$Hu_peakHeightVariance, #sigma from fitted DNAStatistX model
+    sigma = tracerow$Hu_peakHeightVariance, #coef of variance from fitted DNAStatistX model
     threshT = c(
       "D3S1358"=35,
       "vWA"=35,
@@ -179,7 +179,7 @@ for(i in 1:nrow(input_parameters)){
     stutt = 0, #-1 stutter proportion
     stuttFW = 0, #+1 stutter proportion
     prC = 0.05, #numerical dropin probability, default in DNAStatistX
-    lambda = 0.01, #The rate parameter in the exponential distribution for simulating drop-in peak heights, this I think is also a default in DNAStatistX
+    lambda = 0.01, #The rate parameter in the exponential distribution for simulating drop-in peak heights
     beta = tracerow$Hu_degradationSlope, # Degradation slope parameter from fitted DNAStatistX model
     kit = "GlobalFiler"
   )
