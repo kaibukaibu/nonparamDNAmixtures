@@ -281,6 +281,7 @@ registerDoParallel(cl)
 foreach(mixident = unique(combs01$rep_mix),
         .combine=rbind,
         .packages = c("tidyverse")) %dopar% {
+# for(mixident in unique(combs01$rep_mix)){
           
           rowdata <- combs01 %>% 
             filter(rep_mix == mixident)
@@ -414,10 +415,19 @@ foreach(mixident = unique(combs01$rep_mix),
           
           # Remove noise and add the 4 components which will then be added up into peaks later
           origin_contr_traces03 <- origin_contr_traces02 %>% 
+            
+            # Add +1 height info for (a, b=a+1) hetzyg
+            left_join(origin_contr_traces00 %>% 
+                        mutate(Allele_minus1 = as.character(as.numeric(Allele)-1)) %>% 
+                        select(contr, Allele_minus1, Height, Marker, target) %>% 
+                        rename(Height_plus1 = Height),
+                      by=join_by("contr"=="contr", "target"=="target", "Marker"=="Marker", "Allele"=="Allele_minus1")) %>% 
+            mutate(Height_plus1 = ifelse(is.na(Height_plus1), 0, Height_plus1)) %>% 
+            
             filter(!is.na(Allele1)) %>% 
             
             #Add how many unique peaks there are for figuring out which setting is homoz, hetz1dif, hetzno1dif
-            group_by(contr, Marker, target) %>% 
+            group_by(contr, target, Marker) %>% 
             mutate(n_unique_alleles = n_distinct(Allele)) %>% 
             
             #Add random components and stutter stuff
@@ -439,7 +449,7 @@ foreach(mixident = unique(combs01$rep_mix),
                 TRUE ~ 0
               )
             ) %>% 
-            group_by(contr, Marker, target) %>% # We need to spread the value downwards for later calculations
+            group_by(contr,target, Marker) %>% # We need to spread the value downwards for later calculations
             mutate(S1 = sum(S1)) %>% 
             ungroup() %>% 
             
@@ -447,12 +457,14 @@ foreach(mixident = unique(combs01$rep_mix),
             mutate(
               S2 = case_when(
                 n_unique_alleles == 2 & Stutter2 == 1 ~ Height - S1,
-                n_unique_alleles == 3 & Stutter2 == 1 ~ round(p23 * Height),
+                n_unique_alleles == 3 & Stutter2 == 1 ~ case_when(Height == 0 ~ 0,
+                                                                  Height != 0 & Height < round(p23 * Height_plus1) ~ Height, #If expected S2 is larger than the actual A1 peak, we take the A1 height itself
+                                                                  TRUE ~ round(p23 * Height_plus1)),
                 n_unique_alleles == 4 & Stutter2 == 1 ~ Height,
                 TRUE ~ 0
               )
             ) %>% 
-            group_by(contr, Marker, target) %>% 
+            group_by(contr,target, Marker) %>% 
             mutate(S2 = sum(S2)) %>% 
             ungroup() %>% 
             
@@ -465,7 +477,7 @@ foreach(mixident = unique(combs01$rep_mix),
                 TRUE ~ 0
               )
             ) %>% 
-            group_by(contr, Marker, target) %>% 
+            group_by(contr,target, Marker) %>% 
             mutate(A1 = sum(A1)) %>% 
             ungroup() %>% 
             
@@ -478,7 +490,7 @@ foreach(mixident = unique(combs01$rep_mix),
                 TRUE ~ 0
               )
             ) %>% 
-            group_by(contr, Marker, target) %>% 
+            group_by(contr,target, Marker) %>% 
             mutate(A2 = sum(A2)) %>% 
             ungroup() 
           
@@ -746,7 +758,7 @@ foreach(mixident = unique(combs01$rep_mix),
           # Save results
           write.csv(data_complete04,
                     paste0(output_folder, unique(data_complete04$SampleName), ".csv"), row.names=F, quote = F)
-      
+          
         }
 
 
