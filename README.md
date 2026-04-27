@@ -1,4 +1,4 @@
-# nonparamDNAmixtures
+# Simulation code for "Non-Parametric Simulation of DNA Mixture Profiles from One-Person Trace Profiles"
 This code is part of article "Non-Parametric Simulation of DNA Mixture Profiles from One-Person Trace Profiles" by Kai Budrikas and Klaas Slooten (2026). In this code we replicate 2-4-person DNA mixtures from PROVEDIt by pasting together several 1-person DNA profiles, but also provide some example code for simulating some mixtures for a specific set of contributors. Don't hesitate to reach out to Kai (kaib@itu.dk) in case there are any questions :-)
 
 # Necessary software and packages:
