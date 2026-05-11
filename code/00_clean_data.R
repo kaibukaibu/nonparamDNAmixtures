@@ -1,9 +1,9 @@
 # Code for cleaning 1p and mixture data for paper "Non-parametric simulation of DNA mixture profiles from one-person trace profiles"
-# We shall turn the data into a format needed for DNAmixtures and remove replicate alleles (for some profiles, there are some alleles
+# We shall turn the data into a format needed for DNAStatistX and remove replicate alleles (for some profiles, there are some alleles
 # present which have 2 or more peak height data points, we only choose the highest peak).
 # Author: Kai Budrikas (kaib@itu.dk)
 
-# TO DO: adjust other files according to this
+
 
 
 
